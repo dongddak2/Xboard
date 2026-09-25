@@ -24,6 +24,7 @@ class UserUpdate extends FormRequest
             'discount' => 'nullable|integer|min:0|max:100',
             'is_admin' => 'required|in:0,1',
             'is_staff' => 'required|in:0,1',
+            'is_partner' => 'sometimes|in:0,1', // ManduVPN PP-A: admin-only partner flag
             'u' => 'integer',
             'd' => 'integer',
             'balance' => 'numeric',

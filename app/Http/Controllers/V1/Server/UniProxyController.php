@@ -27,7 +27,7 @@ class UniProxyController extends Controller
         $nodeType = $node->type;
         $nodeId = $node->id;
         Cache::put(CacheKey::get('SERVER_' . strtoupper($nodeType) . '_LAST_CHECK_AT', $nodeId), time(), 3600);
-        $users = ServerService::getAvailableUsers($node->group_ids);
+        $users = ServerService::getAvailableUsers($node->group_ids, (int) $node->id); // ManduVPN PP-C1: node-aware (BASIC single server)
 
         $response['users'] = $users;
 
@@ -150,6 +150,14 @@ class UniProxyController extends Controller
             'socks' => [
                 'server_port' => (int) $serverPort,
             ],
+            'ikev2' => [
+                // IKEv2 Agent가 ipsec.conf의 rightsourceip/rightdns/MTU를
+                // 구성하는 데만 사용. 실제 EAP 계정 목록은 /UniProxy/user에서 받는다.
+                'host' => $host,
+                'vpn_pool' => $protocolSettings['vpn_pool'],
+                'dns' => $protocolSettings['dns'],
+                'mtu' => (int) $protocolSettings['mtu'],
+            ],
             default => []
         };
 
@@ -173,7 +181,7 @@ class UniProxyController extends Controller
     public function alivelist(Request $request): JsonResponse
     {
         $node = $request->input('node_info');
-        $deviceLimitUsers = ServerService::getAvailableUsers($node->group_ids)
+        $deviceLimitUsers = ServerService::getAvailableUsers($node->group_ids, (int) $node->id) // ManduVPN PP-C1: same entitlement as user()
             ->where('device_limit', '>', 0);
         $alive = $this->userOnlineService->getAliveList($deviceLimitUsers);
         return response()->json(['alive' => (object) $alive]);

@@ -21,6 +21,6 @@ class ServerGroup extends Model
 
     public function servers()
     {
-        return Server::whereJsonContains('group_ids', (string) $this->id)->get();
+        return Server::whereJsonContains('group_ids', (int) $this->id)->get(); // ManduVPN NG-0: JSON integer array
     }
 }

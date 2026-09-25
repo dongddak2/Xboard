@@ -54,8 +54,47 @@ class ServerSave extends FormRequest
             'reality_settings.short_id' => 'nullable|string',
         ],
         'socks' => [
+        ],
+        'ikev2' => [
+            'vpn_pool' => 'required|string',
+            'dns' => 'nullable|array',
+            'mtu' => 'nullable|integer',
         ]
     ];
+
+    // ManduVPN NG-0: v2_server.group_ids is stored as a JSON integer array. Every element must be an int >= 1 or a
+    // canonical digit string ("1"); then the list becomes unique ints in first-seen order. If any element is
+    // anything else the input is left untouched so the group_ids.* rule rejects the request (never coerced to 0).
+    protected function prepareForValidation(): void
+    {
+        // ManduVPN NG-0 validation fix: judge the ORIGINAL value. The global TrimStrings / ConvertEmptyStringsToNull
+        // middleware already rewrote input() (" 1" -> "1", "" -> null) and would let malformed ids through.
+        $ids = $this->input('group_ids');
+        $ctype = (string) $this->header('Content-Type', '');
+        if ($this->isJson() || str_contains($ctype, 'application/x-www-form-urlencoded')) {
+            $raw = null;
+            if ($this->isJson()) {
+                $raw = json_decode((string) $this->getContent(), true);
+            } else {
+                parse_str((string) $this->getContent(), $raw);
+            }
+            $ids = is_array($raw) && array_key_exists('group_ids', $raw) ? $raw['group_ids'] : null;
+        }
+        if (!is_array($ids)) {
+            return;
+        }
+        $out = [];
+        foreach ($ids as $v) {
+            if (is_int($v) && $v >= 1) {
+                $out[] = $v;
+            } elseif (is_string($v) && preg_match('/^[1-9][0-9]{0,9}$/', $v)) {
+                $out[] = (int) $v;
+            } else {
+                return;
+            }
+        }
+        $this->merge(['group_ids' => array_values(array_unique($out))]);
+    }
 
     private function getBaseRules(): array
     {
@@ -66,6 +105,11 @@ class ServerSave extends FormRequest
             'show' => '',
             'name' => 'required|string',
             'group_ids' => 'nullable|array',
+            'group_ids.*' => ['required', function ($attribute, $value, $fail) { // ManduVPN NG-0: only positive integer group ids
+                if (!is_int($value) || $value < 1) {
+                    $fail('权限组ID格式不正确');
+                }
+            }],
             'route_ids' => 'nullable|array',
             'parent_id' => 'nullable|integer',
             'host' => 'required',

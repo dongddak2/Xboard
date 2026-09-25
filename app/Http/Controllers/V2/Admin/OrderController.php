@@ -203,6 +203,11 @@ class OrderController extends Controller
         if (!$plan) {
             return $this->fail([400202, '该订阅不存在']);
         }
+        // ManduVPN PP-A: a partner plan only for users flagged is_partner (set it in the user editor first);
+        // admin_only (VIP) plans are assignable here by design; public plans unchanged.
+        if (\App\Services\PlanService::audienceOf($plan) === 'partner' && !(int) $user->is_partner) {
+            return $this->fail([422, '협력사 전용 플랜은 협력사로 지정된 회원에게만 배정할 수 있습니다']);
+        }
 
         $userService = new UserService();
         if ($userService->isNotCompleteOrderByUserId($user->id)) {

@@ -19,6 +19,7 @@ class Server extends Model
     public const TYPE_TUIC = 'tuic';
     public const TYPE_SHADOWSOCKS = 'shadowsocks';
     public const TYPE_SOCKS = 'socks';
+    public const TYPE_IKEV2 = 'ikev2';
     public const STATUS_OFFLINE = 0;
     public const STATUS_ONLINE_NO_PUSH = 1;
     public const STATUS_ONLINE = 2;
@@ -53,6 +54,7 @@ class Server extends Model
         self::TYPE_TUIC,
         self::TYPE_SHADOWSOCKS,
         self::TYPE_SOCKS,
+        self::TYPE_IKEV2,
     ];
 
     protected $table = 'v2_server';
@@ -143,6 +145,13 @@ class Server extends Model
                     'allow_insecure' => ['type' => 'boolean', 'default' => false]
                 ]
             ]
+        ],
+        self::TYPE_IKEV2 => [
+            // strongSwan / IKEv2 EAP-MSCHAPv2. 실제 협상은 노드 위의 별도 IKEv2 Agent가 수행하며,
+            // 이 설정은 그 Agent가 ipsec.conf의 rightsourceip/rightdns를 구성하는 데만 쓰인다.
+            'vpn_pool' => ['type' => 'string', 'default' => '10.11.12.0/24'],
+            'dns' => ['type' => 'array', 'default' => ['1.1.1.1', '1.0.0.1']],
+            'mtu' => ['type' => 'integer', 'default' => 1400],
         ]
     ];
 
@@ -253,6 +262,24 @@ class Server extends Model
         $serverKey = Helper::getServerKey($this->created_at, $config['serverKeySize']);
         $userKey = Helper::uuidToBase64($user->uuid, $config['userKeySize']);
         $this->password = "{$serverKey}:{$userKey}";
+    }
+
+    /**
+     * IKEv2 EAP-MSCHAPv2 자격증명을 생성한다.
+     * uuid를 identity/secret 양쪽에 그대로 사용한다 — 이는 Shadowsocks의
+     * fallback 방식($this->password = $user->uuid)과 동일한 패턴이며,
+     * 기존 sspanel-current의 /user/list/{remark} 엔드포인트가
+     * (passwd, passwd) 쌍을 그대로 내려주던 것과도 일치한다.
+     * 별도 DB 컬럼이 필요 없고, IKEv2 Agent가 매번 재계산할 필요도 없다.
+     */
+    public function generateIkev2Credentials(User $user): void
+    {
+        if ($this->type !== self::TYPE_IKEV2) {
+            return;
+        }
+
+        $this->username = $user->uuid;
+        $this->password = $user->uuid;
     }
 
     public static function normalizeType(string $type): string

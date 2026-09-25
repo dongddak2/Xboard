@@ -30,4 +30,9 @@ return [
         'region' => env('AWS_V2BOARD_REGION', 'us-east-1'),
     ],
 
+    // ManduVPN: server-only Toss secret (read via config so config:cache keeps it)
+    'toss' => [
+        'secret_key' => env('TOSS_SECRET_KEY'),
+    ],
+
 ];

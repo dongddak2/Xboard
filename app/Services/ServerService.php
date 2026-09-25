@@ -32,8 +32,16 @@ class ServerService
      */
     public static function getAvailableServers(User $user): array
     {
-        return Server::whereJsonContains('group_ids', (string) $user->group_id)
+        // ManduVPN PP-C1: a BASIC-tier user sees ONLY the assigned server; BASIC without an assignment sees
+        // nothing (fail closed, never every server). No plan / missing plan / tier NULL / pro / master / vip keep
+        // the plain group behaviour. Same rule as the node credential list (getAvailableUsers with a node id).
+        $basic = self::serviceTierOf($user) === BasicServerAssignmentService::TIER; // ManduVPN PLAN-ARCH-1A: one source of truth (LEGACY)
+        if ($basic && $user->assigned_server_id === null) {
+            return [];
+        }
+        return Server::whereJsonContains('group_ids', (int) $user->group_id) // ManduVPN NG-0: group_ids is a JSON integer array
             ->where('show', true)
+            ->when($basic, fn ($query) => $query->where('id', (int) $user->assigned_server_id))
             ->orderBy('sort', 'ASC')
             ->get()
             ->transform(function (Server $server) use ($user) {
@@ -44,6 +52,7 @@ class ServerService
                     $server->server_key = Helper::getServerKey($server->created_at, 16);
                 }
                 $server->generateShadowsocksPassword($user);
+                $server->generateIkev2Credentials($user);
 
                 return $server;
             })
@@ -59,7 +68,7 @@ class ServerService
      * @param array $groupIds
      * @return Collection
      */
-    public static function getAvailableUsers(array $groupIds)
+    public static function getAvailableUsers(array $groupIds, ?int $nodeId = null)
     {
         return User::toBase()
             ->whereIn('group_id', $groupIds)
@@ -69,6 +78,19 @@ class ServerService
                     ->orWhere('expired_at', NULL);
             })
             ->where('banned', 0)
+            // ManduVPN PP-C1: when the asking node is known, a BASIC-tier user (current plan's service_tier) is
+            // delivered ONLY to the node equal to assigned_server_id (NULL -> no node: fail closed). No plan, a
+            // missing plan, tier NULL and pro/master/vip keep the plain group behaviour. One query with a
+            // subquery - no per-user plan lookup. $nodeId NULL (callers without a node id) = unchanged.
+            ->when($nodeId !== null, function ($query) use ($nodeId) {
+                $query->where(function ($q) use ($nodeId) {
+                    $q->whereNull('plan_id')
+                        ->orWhereNotIn('plan_id', function ($sub) {
+                            $sub->select('id')->from('v2_plan')->where('service_tier', BasicServerAssignmentService::TIER); // ManduVPN PLAN-ARCH-1A
+                        })
+                        ->orWhere('assigned_server_id', $nodeId);
+                });
+            })
             ->select([
                 'id',
                 'uuid',
@@ -76,6 +98,13 @@ class ServerService
                 'device_limit'
             ])
             ->get();
+    }
+
+    // ManduVPN PP-C1: service tier of the user's CURRENT plan (explicit plan.service_tier only - never names,
+    // groups or servers). NULL = no plan / missing plan / legacy plan without a tier = plain group behaviour.
+    public static function serviceTierOf(User $user): ?string
+    {
+        return $user->plan_id ? \App\Models\Plan::whereKey($user->plan_id)->value('service_tier') : null;
     }
 
     // 获取路由规则

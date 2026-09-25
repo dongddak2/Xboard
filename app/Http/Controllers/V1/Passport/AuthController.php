@@ -136,14 +136,17 @@ class AuthController extends Controller
                 ->where('status', 0)
                 ->first();
             if (!$inviteCode) {
-                if ((int)admin_setting('invite_force', 0)) {
-                    return $this->fail([400,__('Invalid invitation code')]);
-                }
+                // ManduVPN P1a: an explicitly entered code that does not exist (or is already used) is refused
+                // with 422 before any user row exists; it used to be ignored silently unless invite_force was on.
+                return $this->fail([422, __('Invalid invitation code')]);
             } else {
                 $user->invite_user_id = $inviteCode->user_id ? $inviteCode->user_id : null;
                 if (!(int)admin_setting('invite_never_expire', 0)) {
-                    $inviteCode->status = 1;
-                    $inviteCode->save();
+                    // ManduVPN P1a: single-use codes are consumed by a conditional update, so two concurrent
+                    // signups cannot both use the same code.
+                    if (InviteCode::where('id', $inviteCode->id)->where('status', 0)->update(['status' => 1]) !== 1) {
+                        return $this->fail([422, __('Invalid invitation code')]);
+                    }
                 }
             }
         }
@@ -169,6 +172,13 @@ class AuthController extends Controller
 
         $user->last_login_at = time();
         $user->save();
+
+        // ManduVPN TR-1b: one-time free trial (admin-managed policy) for a successful self-service signup. Never fails the signup.
+        try {
+            \App\Services\TrialService::grantOnSignup($user);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('ManduVPN TR-1b trial not granted: unexpected error', ['user_id' => (int) $user->id]);
+        }
 
         if ((int)admin_setting('register_limit_by_ip_enable', 0)) {
             Cache::put(

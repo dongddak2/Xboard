@@ -20,6 +20,13 @@ class PaymentController extends Controller
             $verify = $paymentService->notify($request->input());
             if (!$verify)
                 return $this->fail([422, 'verify error']);
+            $notifyPayment = Payment::where('uuid', $uuid)->first();
+            $notifyOrder = Order::where('trade_no', $verify['trade_no'])->first();
+            if ($notifyPayment && $notifyOrder
+                && strtoupper($notifyPayment->currency ?: 'CNY') !== strtoupper($notifyOrder->currency ?: 'CNY')) {
+                \Log::warning('ManduVPN currency mismatch on notify', ['trade_no' => $notifyOrder->trade_no, 'payment_id' => $notifyPayment->id]);
+                return $this->fail([400, 'currency mismatch']);
+            }
             if (!$this->handle($verify['trade_no'], $verify['callback_no'])) {
                 return $this->fail([400, 'handle error']);
             }

@@ -32,10 +32,13 @@ class PlanController extends Controller
             'reset_traffic_method' => 'integer|nullable',
             'transfer_enable' => 'integer|required',
             'prices' => 'array|nullable',
+            'prices_krw' => 'array|nullable',
             'group_id' => 'integer|nullable',
             'speed_limit' => 'integer|nullable',
             'device_limit' => 'integer|nullable',
             'capacity_limit' => 'integer|nullable',
+            'audience' => 'sometimes|in:public,partner,admin_only', // ManduVPN PP-A
+            'service_tier' => 'nullable|in:legacy,basic,pro,master,vip', // ManduVPN PP-A: explicit, never parsed from names (PLAN-ARCH-1A: + legacy)
         ]);
         if ($request->input('id')) {
             $plan = Plan::find($request->input('id'));

@@ -38,6 +38,8 @@ class AdminRoute
                 $router->get('/getThemeTemplate', [ConfigController::class, 'getThemeTemplate']);
                 $router->post('/setTelegramWebhook', [ConfigController::class, 'setTelegramWebhook']);
                 $router->post('/testSendMail', [ConfigController::class, 'testSendMail']);
+                $router->get('/trialPolicy', [\App\Http\Controllers\V2\Admin\TrialPolicyController::class, 'fetch']); // ManduVPN TR-1b
+                $router->post('/trialPolicy/save', [\App\Http\Controllers\V2\Admin\TrialPolicyController::class, 'save']); // ManduVPN TR-1b
             });
 
             // Plan
@@ -80,6 +82,10 @@ class AdminRoute
                 $router->post('/update', [ManageController::class, 'update']);
                 $router->post('/save', [ManageController::class, 'save']);
                 $router->post('/drop', [ManageController::class, 'drop']);
+                $router->get('/ikev2Node', [\App\Http\Controllers\V2\Admin\Server\IkeV2NodeController::class, 'fetch']); // ManduVPN PP-C4-1B
+                $router->post('/ikev2Node/issue', [\App\Http\Controllers\V2\Admin\Server\IkeV2NodeController::class, 'issue']); // ManduVPN PP-C4-1B
+                $router->post('/ikev2Node/rotate', [\App\Http\Controllers\V2\Admin\Server\IkeV2NodeController::class, 'rotate']); // ManduVPN PP-C4-1B
+                $router->post('/ikev2Node/revoke', [\App\Http\Controllers\V2\Admin\Server\IkeV2NodeController::class, 'revoke']); // ManduVPN PP-C4-1B
                 $router->post('/copy', [ManageController::class, 'copy']);
                 $router->post('/sort', [ManageController::class, 'sort']);
             });
@@ -110,6 +116,9 @@ class AdminRoute
                 $router->post('/resetSecret', [UserController::class, 'resetSecret']);
                 $router->post('/setInviteUser', [UserController::class, 'setInviteUser']);
                 $router->post('/destroy', [UserController::class, 'destroy']);
+                $router->get('/basicServer', [\App\Http\Controllers\V2\Admin\BasicServerController::class, 'fetch']); // ManduVPN PP-C3
+                $router->post('/basicServer/assign', [\App\Http\Controllers\V2\Admin\BasicServerController::class, 'assign']); // ManduVPN PP-C3
+                $router->post('/basicServer/reassign', [\App\Http\Controllers\V2\Admin\BasicServerController::class, 'reassign']); // ManduVPN PP-C3
             });
 
             // Stat

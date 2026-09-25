@@ -198,6 +198,69 @@ class UserController extends Controller
         return $this->success($user);
     }
 
+    // ManduVPN P1a: admin inviter policy (the only place an inviter can change after signup).
+    //  - invite_user_email absent            -> untouched
+    //  - explicit "" / null                  -> clear; refused once this relationship produced commission
+    //  - explicit email, no inviter yet      -> set (must exist, not self, no cycle); audit log line
+    //  - explicit other email, inviter set   -> refused (clear first, then set: two explicit steps)
+    private function resolveInviterChange(User $user, Request $request): array
+    {
+        if (!$request->exists('invite_user_email')) {
+            return ['set' => false, 'value' => null];
+        }
+        $email = trim((string) $request->input('invite_user_email'));
+        $current = $user->invite_user_id ? (int) $user->invite_user_id : null;
+        if ($email === '') {
+            if ($current === null) {
+                return ['set' => false, 'value' => null];
+            }
+            if (\App\Models\Order::where('user_id', $user->id)->where('invite_user_id', $current)->where('commission_balance', '>', 0)->exists()) {
+                throw new \App\Exceptions\ApiException('이 추천 관계로 이미 커미션이 발생해 추천인을 해제할 수 없습니다', 422);
+            }
+            Log::info('ManduVPN inviter cleared by admin', ['user_id' => $user->id, 'old_inviter_id' => $current]);
+            return ['set' => true, 'value' => null];
+        }
+        $inviter = User::where('email', $email)->first();
+        if (!$inviter) {
+            throw new \App\Exceptions\ApiException('추천인 이메일에 해당하는 사용자가 없습니다', 422);
+        }
+        if ((int) $inviter->id === (int) $user->id) {
+            throw new \App\Exceptions\ApiException('자기 자신을 추천인으로 지정할 수 없습니다', 422);
+        }
+        if ($current === (int) $inviter->id) {
+            return ['set' => false, 'value' => null];
+        }
+        if ($current !== null) {
+            throw new \App\Exceptions\ApiException('이미 추천인이 지정된 사용자입니다. 먼저 해제한 뒤 다시 지정하세요', 422);
+        }
+        for ($id = $inviter->invite_user_id, $i = 0; $id && $i < 64; $id = User::where('id', $id)->value('invite_user_id'), $i++) {
+            if ((int) $id === (int) $user->id) {
+                throw new \App\Exceptions\ApiException('추천 관계가 순환되어 지정할 수 없습니다', 422);
+            }
+        }
+        Log::info('ManduVPN inviter set by admin', ['user_id' => $user->id, 'inviter_id' => $inviter->id]);
+        return ['set' => true, 'value' => (int) $inviter->id];
+    }
+
+    // ManduVPN P1a: routed in AdminRoute (user/setInviteUser) but missing upstream (-> 500); same policy as update().
+    public function setInviteUser(Request $request)
+    {
+        $request->validate(['id' => 'required|integer']);
+        $user = User::find($request->input('id'));
+        if (!$user) {
+            return $this->fail([400202, '用户不存在']);
+        }
+        if (!$request->exists('invite_user_email')) {
+            return $this->fail([422, 'invite_user_email is required (an empty string clears the inviter)']);
+        }
+        $change = $this->resolveInviterChange($user, $request);
+        if ($change['set']) {
+            $user->invite_user_id = $change['value'];
+            $user->save();
+        }
+        return $this->success(true);
+    }
+
     public function update(UserUpdate $request)
     {
         $params = $request->validated();
@@ -223,14 +286,33 @@ class UserController extends Controller
             if (!$plan) {
                 return $this->fail([400202, '订阅计划不存在']);
             }
+            // ManduVPN PP-B: same partner rule as order/assign (PP-A), decided on the FINAL is_partner of this request
+            // (a request may grant partner status and a partner plan together). Only when the plan actually changes:
+            // re-sending the user's current plan (e.g. while revoking partner status) never touches the running
+            // subscription. admin_only (VIP) plans stay assignable here by design.
+            $finalPartner = array_key_exists('is_partner', $params) ? (int) $params['is_partner'] === 1 : (int) $user->is_partner === 1;
+            if ((int) $plan->id !== (int) $user->plan_id && \App\Services\PlanService::audienceOf($plan) === 'partner' && !$finalPartner) {
+                return $this->fail([422, '협력사 전용 플랜은 협력사로 지정된 회원에게만 배정할 수 있습니다']);
+            }
             // return json_encode($plan);
             $params['group_id'] = $plan->group_id;
+            // ManduVPN PP-C2: a real plan change re-decides the BASIC server through the single authoritative service
+            // (re-sending the current plan - the admin UI does on every save - keeps it). Saved by the same
+            // $user->update() as plan/group; no eligible BASIC node -> 422 before anything is written.
+            if ((int) $plan->id !== (int) $user->plan_id) {
+                $params['assigned_server_id'] = \App\Services\BasicServerAssignmentService::resolve($plan,
+                    $user->assigned_server_id !== null ? (int) $user->assigned_server_id : null, \App\Services\ServerService::serviceTierOf($user));
+            }
         }
-        // 处理邀请用户
-        if ($request->input('invite_user_email') && $inviteUser = User::where('email', $request->input('invite_user_email'))->first()) {
-            $params['invite_user_id'] = $inviteUser->id;
-        } else {
-            $params['invite_user_id'] = null;
+        if (array_key_exists('plan_id', $params) && $params['plan_id'] === null) {
+            $params['assigned_server_id'] = null; // ManduVPN PP-C2: no plan -> no single-server restriction
+        }
+        // ManduVPN P1a: the inviter only changes when invite_user_email is explicitly sent (resolveInviterChange);
+        // omitting the field - as every unrelated admin save does - leaves invite_user_id untouched.
+        unset($params['invite_user_id']);
+        $inviterChange = $this->resolveInviterChange($user, $request);
+        if ($inviterChange['set']) {
+            $params['invite_user_id'] = $inviterChange['value'];
         }
 
         if (isset($params['banned']) && (int) $params['banned'] === 1) {
@@ -339,6 +421,11 @@ class UserController extends Controller
 
     public function generate(UserGenerate $request)
     {
+        // ManduVPN PP-C2 / PLAN-ARCH-1A: generated accounts never receive a single-server (LEGACY, BSA::TIER) plan directly - the
+        // server is chosen per user by BasicServerAssignmentService (order open / admin user update). Generate first, then grant.
+        if ($request->input('plan_id') && \App\Models\Plan::whereKey($request->input('plan_id'))->value('service_tier') === \App\Services\BasicServerAssignmentService::TIER) {
+            return $this->fail([422, '기존 요금제(LEGACY) 등급 플랜은 계정 생성 시 직접 지정할 수 없습니다. 생성 후 주문 할당 또는 회원 수정으로 지급하세요']);
+        }
         if ($request->input('email_prefix')) {
             if ($request->input('plan_id')) {
                 $plan = Plan::find($request->input('plan_id'));

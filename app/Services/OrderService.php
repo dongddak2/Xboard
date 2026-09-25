@@ -69,6 +69,11 @@ class OrderService
             $this->setSpeedLimit($plan->speed_limit);
             $this->setDeviceLimit($plan->device_limit);
 
+            // ManduVPN PP-C2: BASIC single-server entitlement follows the plan applied above; decided inside this
+            // transaction so plan/group/expiry and assigned_server_id commit or roll back together (no eligible
+            // BASIC node -> exception -> rollback -> nothing changes).
+            \App\Services\BasicServerAssignmentService::applyTo($this->user);
+
             if (!$this->user->save()) {
                 throw new \Exception('用户信息保存失败');
             }
@@ -190,6 +195,14 @@ class OrderService
         $order->surplus_order_ids = array_column($orderModel->get()->toArray(), 'id');
     }
 
+    /**
+     * Prorates the residual value of a user's still-valid completed orders when
+     * they switch plans mid-cycle. Legacy month-based orders (monthly/quarterly/...)
+     * keep the exact original calendar-month math (unchanged). New day-based orders
+     * (days_30..days_360) are summed separately in real days and layered on top via
+     * a combined strtotime() relative string, so when no day-based order is present
+     * in the history this produces byte-for-byte the same result as before.
+     */
     private function getSurplusValueByPeriod(User $user, Order $order)
     {
         $orders = Order::where('user_id', $user->id)
@@ -201,18 +214,28 @@ class OrderService
             return;
         $orderAmountSum = 0;
         $orderMonthSum = 0;
+        $orderDaysSum = 0;
         $lastValidateAt = 0;
         foreach ($orders as $item) {
-            $period = self::STR_TO_TIME[PlanService::getPeriodKey($item['period'])];
-            if (strtotime("+{$period} month", $item['created_at']) < time())
-                continue;
-            $lastValidateAt = $item['created_at'];
-            $orderMonthSum = $period + $orderMonthSum;
+            $periodKey = PlanService::getPeriodKey($item['period']);
+            if (Plan::isDaysPeriod($periodKey)) {
+                $days = Plan::daysPeriodToDays($periodKey);
+                if (strtotime("+{$days} days", $item['created_at']) < time())
+                    continue;
+                $lastValidateAt = $item['created_at'];
+                $orderDaysSum = $days + $orderDaysSum;
+            } else {
+                $period = self::STR_TO_TIME[$periodKey];
+                if (strtotime("+{$period} month", $item['created_at']) < time())
+                    continue;
+                $lastValidateAt = $item['created_at'];
+                $orderMonthSum = $period + $orderMonthSum;
+            }
             $orderAmountSum = $orderAmountSum + ($item['total_amount'] + $item['balance_amount'] + $item['surplus_amount'] - $item['refund_amount']);
         }
         if (!$lastValidateAt)
             return;
-        $expiredAtByOrder = strtotime("+{$orderMonthSum} month", $lastValidateAt);
+        $expiredAtByOrder = strtotime("+{$orderMonthSum} month +{$orderDaysSum} days", $lastValidateAt);
         if ($expiredAtByOrder < time())
             return;
         $orderSurplusSecond = $expiredAtByOrder - time();
@@ -249,9 +272,19 @@ class OrderService
         $order = $this->order;
         try {
             DB::beginTransaction();
+            // ManduVPN coupon phase: only the pending -> cancelled transition releases the balance and
+            // the coupon use. The conditional update lets that happen at most once per order: a second
+            // cancel, a stale copy, or a cancel racing a payment changes 0 rows and releases nothing.
+            $transitioned = Order::where('id', $order->id)
+                ->where('status', Order::STATUS_PENDING)
+                ->update(['status' => Order::STATUS_CANCELLED]);
+            if ($transitioned !== 1) {
+                DB::rollBack();
+                return false;
+            }
             $order->status = Order::STATUS_CANCELLED;
-            if (!$order->save()) {
-                throw new \Exception('Failed to save order status.');
+            if ($order->coupon_id) {
+                \App\Models\Coupon::where('id', $order->coupon_id)->whereNotNull('limit_use')->increment('limit_use');
             }
             if ($order->balance_amount) {
                 $userService = new UserService();
@@ -311,12 +344,22 @@ class OrderService
         $this->user->expired_at = NULL;
     }
 
+    /**
+     * Computes the new expiry timestamp for a period. Legacy periods
+     * (monthly/quarterly/half_yearly/yearly/two_yearly/three_yearly) keep the
+     * original calendar-month arithmetic, unchanged. New "days_N" periods
+     * (days_30..days_360) extend by exactly N days instead of calendar months.
+     */
     private function getTime($str, $timestamp)
     {
         if ($timestamp < time()) {
             $timestamp = time();
         }
         $str = PlanService::getPeriodKey($str);
+        if (Plan::isDaysPeriod($str)) {
+            $days = Plan::daysPeriodToDays($str);
+            return strtotime("+{$days} days", $timestamp);
+        }
         switch ($str) {
             case Plan::PERIOD_MONTHLY:
                 return strtotime('+1 month', $timestamp);

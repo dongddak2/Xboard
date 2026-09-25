@@ -19,7 +19,7 @@ class PlanController extends Controller
     }
     public function fetch(Request $request)
     {
-        $plan = $this->planService->getAvailablePlans();
+        $plan = $this->planService->getVisiblePlans(null); // ManduVPN PP-A: guests never see partner / admin_only plans
         return $this->success(PlanResource::collection($plan));
     }
 }

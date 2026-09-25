@@ -36,6 +36,44 @@ class Plan extends Model
     public const PERIOD_ONETIME = 'onetime';
     public const PERIOD_RESET_TRAFFIC = 'reset_traffic';
 
+    // ManduVPN day-based periods (additive; legacy month-based periods above are unchanged).
+    // Exact-day billing periods used by the 30~360-day plan lineup. Kept separate from
+    // the legacy calendar-month periods because OrderService computes their expiry
+    // differently (fixed +N days vs. calendar +N month).
+    public const DAYS_BASED_PERIODS = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360];
+
+    public const PERIOD_DAYS_30 = 'days_30';
+    public const PERIOD_DAYS_60 = 'days_60';
+    public const PERIOD_DAYS_90 = 'days_90';
+    public const PERIOD_DAYS_120 = 'days_120';
+    public const PERIOD_DAYS_150 = 'days_150';
+    public const PERIOD_DAYS_180 = 'days_180';
+    public const PERIOD_DAYS_210 = 'days_210';
+    public const PERIOD_DAYS_240 = 'days_240';
+    public const PERIOD_DAYS_270 = 'days_270';
+    public const PERIOD_DAYS_300 = 'days_300';
+    public const PERIOD_DAYS_330 = 'days_330';
+    public const PERIOD_DAYS_360 = 'days_360';
+
+    /**
+     * True for the new "days_N" style period keys (e.g. "days_90").
+     */
+    public static function isDaysPeriod(string $period): bool
+    {
+        return (bool) preg_match('/^days_(\d+)$/', $period);
+    }
+
+    /**
+     * Extracts N from a "days_N" period key. Returns null for any other key.
+     */
+    public static function daysPeriodToDays(string $period): ?int
+    {
+        if (preg_match('/^days_(\d+)$/', $period, $m)) {
+            return (int) $m[1];
+        }
+        return null;
+    }
+
     // 定义旧版周期映射
     public const LEGACY_PERIOD_MAPPING = [
         'month_price' => self::PERIOD_MONTHLY,
@@ -49,6 +87,8 @@ class Plan extends Model
     ];
 
     protected $fillable = [
+        'audience', // ManduVPN PP-A
+        'service_tier', // ManduVPN PP-A
         'group_id',
         'transfer_enable',
         'name',
@@ -58,6 +98,7 @@ class Plan extends Model
         'renew',
         'content',
         'prices',
+        'prices_krw',
         'reset_traffic_method',
         'capacity_limit',
         'sell',
@@ -71,6 +112,7 @@ class Plan extends Model
         'updated_at' => 'timestamp',
         'group_id' => 'integer',
         'prices' => 'array',
+        'prices_krw' => 'array',
         'reset_traffic_method' => 'integer',
     ];
 
@@ -164,7 +206,7 @@ class Plan extends Model
      */
     public static function getAvailablePeriods(): array
     {
-        return [
+        $periods = [
             self::PERIOD_MONTHLY => [
                 'name' => '月付',
                 'days' => 30,
@@ -206,6 +248,16 @@ class Plan extends Model
                 'value' => -1
             ],
         ];
+
+        foreach (self::DAYS_BASED_PERIODS as $days) {
+            $periods["days_{$days}"] = [
+                'name' => "{$days}일",
+                'days' => $days,
+                'value' => $days / 30
+            ];
+        }
+
+        return $periods;
     }
 
     /**

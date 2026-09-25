@@ -55,8 +55,54 @@ class PlanService
      * @param User $user
      * @return bool
      */
+    // ManduVPN PP-A: plan AUDIENCE = who may buy a plan. Separate from the service tier (what the plan
+    // provides) and from group_id (VPN server access, overwritten by open()).
+    //   public     -> everyone (guest listing, normal + partner purchase)
+    //   partner    -> authenticated users with is_partner = 1 only
+    //   admin_only -> never through the purchase flow; admin order/assign only (VIP)
+    public static function audienceOf(Plan $plan): string
+    {
+        return (string) ($plan->audience ?: 'public');
+    }
+
+    public static function canUserAccessPlan(?User $user, Plan $plan): bool
+    {
+        switch (self::audienceOf($plan)) {
+            case 'public':
+                return true;
+            case 'partner':
+                return $user !== null && (int) $user->is_partner === 1;
+            default:
+                return false;
+        }
+    }
+
+    // Paying an EXISTING pending order (checkout): a partner plan needs partner status NOW (it may have been
+    // revoked after the order was created). admin_only orders exist only because an admin assigned them.
+    public static function canUserPayPlan(?User $user, Plan $plan): bool
+    {
+        return self::audienceOf($plan) !== 'partner' || ($user !== null && (int) $user->is_partner === 1);
+    }
+
+    // What a user (or guest) sees: sellable + audience-allowed plans. A partner sees the partner plan INSTEAD
+    // of the public plan with the same explicit service_tier + device_limit (never inferred from plan names).
+    public function getVisiblePlans(?User $user): Collection
+    {
+        $plans = $this->getAvailablePlans()->filter(fn (Plan $p) => self::canUserAccessPlan($user, $p));
+        if ($user === null || (int) $user->is_partner !== 1) {
+            return $plans->values();
+        }
+        $pairKey = fn (Plan $p) => $p->service_tier ? $p->service_tier . '|' . (int) $p->device_limit : null;
+        $partnerKeys = $plans->filter(fn (Plan $p) => self::audienceOf($p) === 'partner')->map($pairKey)->filter()->flip();
+        return $plans->reject(fn (Plan $p) => self::audienceOf($p) === 'public' && ($k = $pairKey($p)) !== null && $partnerKeys->has($k))->values();
+    }
+
     public function isPlanAvailableForUser(Plan $plan, User $user): bool
     {
+        // ManduVPN PP-A: audience gate first (covers new purchase AND renewal of partner / admin_only plans)
+        if (!self::canUserAccessPlan($user, $plan)) {
+            return false;
+        }
         // 如果是续费
         if ($user->plan_id === $plan->id) {
             return $plan->renew;
@@ -70,6 +116,10 @@ class PlanService
     {
         if (!$this->plan) {
             throw new ApiException(__('Subscription plan does not exist'));
+        }
+        // ManduVPN PP-A: partner-only / admin_only plans cannot be bought through the purchase flow
+        if (!self::canUserAccessPlan($user, $this->plan)) {
+            throw new ApiException(__('This subscription plan is not available for your account'), 403);
         }
 
         // 转换周期格式为新版格式

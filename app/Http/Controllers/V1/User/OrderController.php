@@ -17,6 +17,7 @@ use App\Services\PlanService;
 use App\Services\Plugin\HookManager;
 use App\Services\UserService;
 use App\Utils\Helper;
+use App\Utils\Money;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -63,9 +64,16 @@ class OrderController extends Controller
 
     public function save(OrderSave $request)
     {
+        // ManduVPN: a selected payment method must exist and be enabled.
+        // No payment_id keeps the legacy CNY behaviour.
+        if ($request->filled('payment_id')
+            && !Payment::where('id', $request->input('payment_id'))->where('enable', 1)->exists()) {
+            throw new ApiException(__('Payment method is not available'));
+        }
         $request->validate([
             'plan_id' => 'required|exists:App\Models\Plan,id',
-            'period' => 'required|string'
+            'period' => 'required|string',
+            'payment_id' => 'nullable|integer|exists:App\Models\Payment,id',
         ]);
 
         $user = User::findOrFail($request->user()->id);
@@ -81,33 +89,77 @@ class OrderController extends Controller
         // Validate plan purchase
         $planService->validatePurchase($user, $request->input('period'));
 
-        return DB::transaction(function () use ($request, $plan, $user, $userService, $planService) {
+        // ManduVPN dual-currency: currency is SERVER-derived from the
+        // chosen Payment gateway's `currency` column — never taken from a
+        // client-supplied currency/amount parameter (Payment.currency is
+        // itself admin-managed data, not something the client can set).
+        // No payment_id => CNY, matching every pre-existing gateway before
+        // this session's dual-currency work.
+        $payment = $request->input('payment_id') ? Payment::find($request->input('payment_id')) : null;
+        $currency = $payment ? strtoupper($payment->currency ?? 'CNY') : 'CNY';
+
+        // KRW orders are deliberately barred from coupon codes: a
+        // fixed-amount coupon's `value` has no currency field of its own
+        // (see CouponService::use() / the Coupon model), so applying it
+        // against a KRW total would silently subtract a CNY-scaled number
+        // from a KRW amount. Rejecting the combination is safer than
+        // guessing a conversion.
+        // ManduVPN coupon phase: KRW coupons are validated by CouponService (currency-aware).
+
+        return DB::transaction(function () use ($request, $plan, $user, $userService, $planService, $currency, $payment) {
             $period = $request->input('period');
             $newPeriod = PlanService::getPeriodKey($period);
 
-            // Create order
+            if ($currency === 'KRW') {
+                $krwPrice = optional($plan->prices_krw)[$newPeriod] ?? null;
+                if ($krwPrice === null) {
+                    throw new ApiException(__('This payment period cannot be purchased, please choose another period'));
+                }
+                $totalAmount = Money::toMinorUnit('KRW', $krwPrice);
+            } else {
+                // Unchanged legacy math — CNY fen, byte-identical to before this session.
+                $totalAmount = optional($plan->prices)[$newPeriod] * 100;
+            }
+
+            // Create order — payment_id/currency/total_amount are all
+            // fixed as a snapshot here. Later admin changes to Plan prices
+            // or Payment.currency never retroactively affect this order.
             $order = new Order([
                 'user_id' => $user->id,
                 'plan_id' => $plan->id,
                 'period' => $newPeriod,
                 'trade_no' => Helper::generateOrderNo(),
-                'total_amount' => optional($plan->prices)[$newPeriod] * 100
+                'total_amount' => $totalAmount,
+                'currency' => $currency,
+                'payment_id' => $payment?->id,
             ]);
 
-            // Apply coupon if provided
+            // Apply coupon if provided (CNY path only, per the guard above)
             if ($request->input('coupon_code')) {
                 $this->applyCoupon($order, $request->input('coupon_code'));
             }
 
             // Set order attributes
             $orderService = new OrderService($order);
-            $orderService->setVipDiscount($user);
+            $orderService->setVipDiscount($user); // percentage-based — currency-agnostic, safe for both
             $orderService->setOrderType($user);
             $orderService->setInvite($user);
 
-            // Handle user balance
-            if ($user->balance && $order->total_amount > 0) {
+            // Handle user balance — User.balance is a single CNY-denominated
+            // field (no dual balance). Applying it to a KRW order would mix
+            // currencies exactly like the coupon case above, so it's
+            // skipped for KRW orders.
+            if ($currency !== 'KRW' && $user->balance && $order->total_amount > 0) {
                 $this->handleUserBalance($order, $user, $userService);
+            }
+
+            // ManduVPN: invite commission is CNY-only (commission_balance and user balance have
+            // no currency column), so a KRW order never creates or triggers a commission.
+            $manduPaymentId = $order->payment_id ?: $request->input('payment_id');
+            if (strtoupper((string) $order->currency) === 'KRW'
+                || ($manduPaymentId && strtoupper((string) optional(Payment::find($manduPaymentId))->currency) === 'KRW')) {
+                $order->commission_balance = 0;
+                $order->invite_user_id = null;
             }
 
             if (!$order->save()) {
@@ -158,6 +210,12 @@ class OrderController extends Controller
         if (!$order) {
             return $this->fail([400, __('Order does not exist or has been paid')]);
         }
+        // ManduVPN PP-A: re-check the plan audience at checkout - partner status may have been revoked after
+        // this pending order was created. Refused before any gateway call or state change.
+        $checkoutPlan = Plan::find($order->plan_id);
+        if ($checkoutPlan && !PlanService::canUserPayPlan(User::find($order->user_id), $checkoutPlan)) {
+            return $this->fail([403, __('This subscription plan is not available for your account')]);
+        }
         // free process
         if ($order->total_amount <= 0) {
             $orderService = new OrderService($order);
@@ -171,6 +229,23 @@ class OrderController extends Controller
         $payment = Payment::find($method);
         if (!$payment || $payment->enable !== 1)
             return $this->fail([400, __('Payment method is not available')]);
+
+        // ManduVPN: checkout NEVER re-derives price/currency — it only
+        // verifies the gateway picked at checkout time is the SAME one the
+        // order was created with (payment_id snapshot from save()), and
+        // that gateway's CURRENT currency still matches the order's
+        // snapshotted currency. If an admin changes Payment.currency after
+        // the order was created, this order is refused rather than
+        // silently charged in a different currency than the customer saw.
+        if ($order->payment_id !== null && (int) $order->payment_id !== (int) $payment->id) {
+            return $this->fail([400, __('This payment method does not match the order')]);
+        }
+        $orderCurrency = strtoupper($order->currency ?? 'CNY');
+        $gatewayCurrency = strtoupper($payment->currency ?? 'CNY');
+        if ($orderCurrency !== $gatewayCurrency) {
+            return $this->fail([400, __('This payment method does not support the order currency')]);
+        }
+
         $paymentService = new PaymentService($payment->payment, $payment->id);
         $order->handling_amount = NULL;
         if ($payment->handling_fee_fixed || $payment->handling_fee_percent) {
@@ -209,6 +284,8 @@ class OrderController extends Controller
             'id',
             'name',
             'payment',
+            'uuid',
+            'currency',
             'icon',
             'handling_fee_fixed',
             'handling_fee_percent'

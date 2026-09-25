@@ -17,6 +17,7 @@ class UserRoute
             $router->post('/changePassword', 'V1\\User\\UserController@changePassword');
             $router->post('/update', 'V1\\User\\UserController@update');
             $router->get ('/getSubscribe', 'V1\\User\\UserController@getSubscribe');
+            $router->get ('/manduvpn/trial', 'V1\\User\\TrialStatusController@fetch'); // ManduVPN TR-2A
             $router->get ('/getStat', 'V1\\User\\UserController@getStat');
             $router->get ('/checkLogin', 'V1\\User\\UserController@checkLogin');
             $router->post('/transfer', 'V1\\User\\UserController@transfer');

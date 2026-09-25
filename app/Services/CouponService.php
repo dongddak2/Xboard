@@ -5,14 +5,22 @@ namespace App\Services;
 use App\Exceptions\ApiException;
 use App\Models\Coupon;
 use App\Models\Order;
-use Illuminate\Support\Facades\DB;
 
+// ManduVPN coupon phase: currency-aware coupons (CNY/KRW), new-user-only, minimum amount.
+// Every amount is in the ORDER currency's minor unit, the same unit as Order.total_amount:
+// CNY = fen (x100, legacy xboard), KRW = won (no minor unit). No currency conversion, ever.
 class CouponService
 {
+    public const TYPE_FIXED = 1;
+    public const TYPE_PERCENT = 2;
+    public const CURRENCIES = ['CNY', 'KRW'];
+
     public $coupon;
     public $planId;
     public $userId;
     public $period;
+    public $currency; // order currency; null = no order context (coupon/check without payment_id)
+    public $amount;   // order amount before discount, minor unit of $currency
 
     public function __construct($code)
     {
@@ -21,23 +29,32 @@ class CouponService
             ->first();
     }
 
+    // Currency a fixed coupon is denominated in; legacy rows (NULL) were always CNY fen.
+    public static function fixedCurrency(Coupon $coupon): ?string
+    {
+        if ((int) $coupon->type !== self::TYPE_FIXED) {
+            return null;
+        }
+        return strtoupper((string) ($coupon->currency ?: 'CNY'));
+    }
+
+    // Integer discount in the order's minor unit; percentage is floored, never above the amount.
+    public function discountFor(int $amount): int
+    {
+        $value = (int) $this->coupon->value;
+        $discount = (int) $this->coupon->type === self::TYPE_FIXED ? $value : intdiv($amount * $value, 100);
+        return max(0, min($discount, $amount));
+    }
+
     public function use(Order $order): bool
     {
         $this->setPlanId($order->plan_id);
         $this->setUserId($order->user_id);
         $this->setPeriod($order->period);
+        $this->setCurrency($order->currency ?: 'CNY');
+        $this->setAmount((int) $order->total_amount);
         $this->check();
-        switch ($this->coupon->type) {
-            case 1:
-                $order->discount_amount = $this->coupon->value;
-                break;
-            case 2:
-                $order->discount_amount = $order->total_amount * ($this->coupon->value / 100);
-                break;
-        }
-        if ($order->discount_amount > $order->total_amount) {
-            $order->discount_amount = $order->total_amount;
-        }
+        $order->discount_amount = $this->discountFor((int) $order->total_amount);
         if ($this->coupon->limit_use !== NULL) {
             if ($this->coupon->limit_use <= 0)
                 return false;
@@ -76,11 +93,37 @@ class CouponService
         }
     }
 
+    public function setCurrency($currency)
+    {
+        $this->currency = $currency ? strtoupper((string) $currency) : null;
+    }
+
+    public function setAmount($amount)
+    {
+        $this->amount = $amount === null ? null : (int) $amount;
+    }
+
+    // Paid = processing/completed/discounted with money actually paid. Pending and cancelled
+    // orders never count, and the order being created is not in the table yet.
+    public static function hasPaidOrder(int $userId): bool
+    {
+        return Order::where('user_id', $userId)
+            ->whereIn('status', [Order::STATUS_PROCESSING, Order::STATUS_COMPLETED, Order::STATUS_DISCOUNTED])
+            ->where(function ($q) {
+                $q->where('total_amount', '>', 0)->orWhere('balance_amount', '>', 0);
+            })
+            ->exists();
+    }
+
     public function checkLimitUseWithUser(): bool
     {
+        // Pending orders hold the coupon too, and the locking read makes two concurrent orders of
+        // the same user serialize on it instead of both counting 0.
         $usedCount = Order::where('coupon_id', $this->coupon->id)
             ->where('user_id', $this->userId)
-            ->whereNotIn('status', [0, 2])
+            ->where('status', '!=', Order::STATUS_CANCELLED)
+            ->lockForUpdate()
+            ->get(['id'])
             ->count();
         if ($usedCount >= $this->coupon->limit_use_with_user)
             return false;
@@ -111,12 +154,40 @@ class CouponService
                 throw new ApiException(__('The coupon code cannot be used for this period'));
             }
         }
+        $this->checkCurrencyAndAmount();
+        if ($this->coupon->new_user_only && $this->userId && self::hasPaidOrder((int) $this->userId)) {
+            throw new ApiException(__('This coupon is only available to new users'));
+        }
         if ($this->coupon->limit_use_with_user !== NULL && $this->userId) {
             if (!$this->checkLimitUseWithUser()) {
                 throw new ApiException(__('The coupon can only be used :limit_use_with_user per person', [
                     'limit_use_with_user' => $this->coupon->limit_use_with_user
                 ]));
             }
+        }
+    }
+
+    protected function checkCurrencyAndAmount(): void
+    {
+        if ($this->currency === null) {
+            return;
+        }
+        $fixed = self::fixedCurrency($this->coupon);
+        if ($fixed !== null && $fixed !== $this->currency) {
+            throw new ApiException(__('This coupon cannot be used with this currency'));
+        }
+        if ($this->amount === null) {
+            return;
+        }
+        if ($this->coupon->min_amount !== null) {
+            // A minimum only has meaning in the coupon's own currency (percentage coupons carry none).
+            $minCurrency = $fixed ?? ($this->coupon->currency ? strtoupper((string) $this->coupon->currency) : null);
+            if ($minCurrency !== $this->currency || $this->amount < (int) $this->coupon->min_amount) {
+                throw new ApiException(__('The order amount does not meet the minimum for this coupon'));
+            }
+        }
+        if ($this->amount - $this->discountFor($this->amount) <= 0) {
+            throw new ApiException(__('This coupon cannot reduce the order amount to zero'));
         }
     }
 }

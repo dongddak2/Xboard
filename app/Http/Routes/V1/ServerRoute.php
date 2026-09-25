@@ -14,6 +14,14 @@ class ServerRoute
         $router->group([
             'prefix' => 'server',
         ], function ($router) {
+            $router->group([ // ManduVPN PP-C4-1C: IKEv2 node API (per-node token, IkeV2NodeAuth)
+                'prefix' => 'manduvpn/ikev2',
+                'middleware' => \App\Http\Middleware\IkeV2NodeAuth::class,
+            ], function ($route) {
+                $route->get('users', [\App\Http\Controllers\V1\Server\IkeV2NodeApiController::class, 'users']);
+                $route->post('report', [\App\Http\Controllers\V1\Server\IkeV2NodeApiController::class, 'report']);
+                $route->get('ping', [\App\Http\Controllers\V1\Server\IkeV2NodeApiController::class, 'ping']);
+            });
             $router->group([
                 'prefix' => 'UniProxy',
                 'middleware' => 'server'

@@ -154,16 +154,19 @@ class CouponController extends Controller
             return $this->fail([500, '生成失败']);
         }
 
-        $data = "名称,类型,金额或比例,开始时间,结束时间,可用次数,可用于订阅,券码,生成时间\r\n";
+        $data = "名称,类型,金额或比例,开始时间,结束时间,可用次数,可用于订阅,券码,生成时间,currency\r\n";
         foreach ($coupons as $coupon) {
             $type = ['', '金额', '比例'][$coupon['type']];
-            $value = ['', ($coupon['value'] / 100), $coupon['value']][$coupon['type']];
+            // ManduVPN coupon phase: fixed CNY is stored in fen (shown in yuan, unchanged), fixed KRW in
+            // won (shown as is), legacy fixed with currency NULL = CNY; percentage shown with %.
+            $currency = (int) $coupon['type'] === 1 ? strtoupper(($coupon['currency'] ?? '') ?: 'CNY') : '';
+            $value = (int) $coupon['type'] === 1 ? ($currency === 'KRW' ? $coupon['value'] : $coupon['value'] / 100) : $coupon['value'] . '%';
             $startTime = date('Y-m-d H:i:s', $coupon['started_at']);
             $endTime = date('Y-m-d H:i:s', $coupon['ended_at']);
             $limitUse = $coupon['limit_use'] ?? '不限制';
             $createTime = date('Y-m-d H:i:s', $coupon['created_at']);
             $limitPlanIds = isset($coupon['limit_plan_ids']) ? implode("/", $coupon['limit_plan_ids']) : '不限制';
-            $data .= "{$coupon['name']},{$type},{$value},{$startTime},{$endTime},{$limitUse},{$limitPlanIds},{$coupon['code']},{$createTime}\r\n";
+            $data .= "{$coupon['name']},{$type},{$value},{$startTime},{$endTime},{$limitUse},{$limitPlanIds},{$coupon['code']},{$createTime},{$currency}\r\n";
         }
         echo $data;
     }

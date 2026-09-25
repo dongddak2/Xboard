@@ -15,7 +15,7 @@ class OrderSave extends FormRequest
     {
         return [
             'plan_id' => 'required',
-            'period' => 'required|in:month_price,quarter_price,half_year_price,year_price,two_year_price,three_year_price,onetime_price,reset_price'
+            'period' => 'required|in:month_price,quarter_price,half_year_price,year_price,two_year_price,three_year_price,onetime_price,reset_price,days_30,days_60,days_90,days_120,days_150,days_180,days_210,days_240,days_270,days_300,days_330,days_360'
         ];
     }
 

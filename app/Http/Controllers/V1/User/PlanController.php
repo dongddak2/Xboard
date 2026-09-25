@@ -32,7 +32,7 @@ class PlanController extends Controller
             return $this->success(PlanResource::make($plan));
         }
 
-        $plans = $this->planService->getAvailablePlans();
+        $plans = $this->planService->getVisiblePlans($user); // ManduVPN PP-A: audience-filtered, partner substitution
         return $this->success(PlanResource::collection($plans));
     }
 }

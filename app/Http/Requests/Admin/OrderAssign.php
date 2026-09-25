@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Models\Plan;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class OrderAssign extends FormRequest
 {
@@ -17,7 +19,11 @@ class OrderAssign extends FormRequest
             'plan_id' => 'required',
             'email' => 'required',
             'total_amount' => 'required',
-            'period' => 'required|in:month_price,quarter_price,half_year_price,year_price,two_year_price,three_year_price,onetime_price,reset_price'
+            // ManduVPN: legacy periods + the 12 days_N periods (source of truth: Plan::DAYS_BASED_PERIODS); days_31 etc. stay invalid.
+            'period' => ['required', Rule::in(array_merge(
+                ['month_price', 'quarter_price', 'half_year_price', 'year_price', 'two_year_price', 'three_year_price', 'onetime_price', 'reset_price'],
+                array_map(fn ($d) => 'days_' . $d, Plan::DAYS_BASED_PERIODS)
+            ))]
         ];
     }
 
