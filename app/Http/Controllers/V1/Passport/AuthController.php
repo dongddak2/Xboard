@@ -12,11 +12,14 @@ use App\Models\InviteCode;
 use App\Models\Plan;
 use App\Models\User;
 use App\Services\AuthService;
+use App\Services\ConsentService;
 use App\Utils\CacheKey;
 use App\Utils\Dict;
 use App\Utils\Helper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use ReCaptcha\ReCaptcha;
 
 class AuthController extends Controller
@@ -104,6 +107,17 @@ class AuthController extends Controller
         if ((int)admin_setting('stop_register', 0)) {
             return $this->fail([400,__('Registration has closed')]);
         }
+        // ManduVPN RC: the three mandatory signup consents (RC_CONTRACTS.md §3). This is THE gate - a client
+        // that bypasses the web checkboxes and posts straight to this endpoint is refused here with 422, before
+        // any side effect (no invite code is consumed, no user row is created).
+        $consentErrors = ConsentService::validateRegistration($request->all());
+        if ($consentErrors) {
+            // Machine code goes in the existing `error` field so a frontend can localize without relying on the
+            // optional content-language header; the response envelope itself is unchanged.
+            return $this->fail([422, $consentErrors[0][1]], null, $consentErrors[0][0]);
+        }
+        $consentVersion = ConsentService::currentVersion();
+        $consentLocale = ConsentService::normalizeLocale($request->input('consent_locale'));
         if ((int)admin_setting('invite_force', 0)) {
             if (empty($request->input('invite_code'))) {
                 return $this->fail([422,__('You must use the invitation code to register')]);
@@ -163,7 +177,23 @@ class AuthController extends Controller
             }
         }
 
-        if (!$user->save()) {
+        // ManduVPN RC: the user row and its consent evidence commit or roll back together (RC_CONTRACTS.md §3.2),
+        // so a v2_user row can never exist without the consent it was created under.
+        try {
+            $created = DB::transaction(function () use ($user, $consentVersion, $consentLocale) {
+                if (!$user->save()) {
+                    return false;
+                }
+                ConsentService::record((int) $user->id, $consentVersion, (string) $consentLocale, time());
+                return true;
+            });
+        } catch (\Throwable $e) {
+            Log::error('ManduVPN RC: signup rolled back, consent evidence could not be recorded', [
+                'reason' => class_basename($e),
+            ]);
+            return $this->fail([500,__('Register failed')]);
+        }
+        if (!$created) {
             return $this->fail([500,__('Register failed')]);
         }
         if ((int)admin_setting('email_verify', 0)) {

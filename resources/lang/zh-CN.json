@@ -129,5 +129,8 @@
     "update.code_update_failed": "代码更新失败: :error",
     "update.migration_failed": "数据库迁移失败: :error",
     "update.cache_clear_failed": "缓存清理失败: :error",
-    "update.flag_create_failed": "创建更新标记失败: :error"
+    "update.flag_create_failed": "创建更新标记失败: :error",
+    "You must agree to the required terms to sign up": "须同意全部必选条款后才能注册",
+    "The terms have been updated, please review and agree again": "条款已更新，请重新阅读并同意",
+    "Unsupported terms language": "不支持的条款语言"
 }

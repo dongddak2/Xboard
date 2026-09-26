@@ -129,5 +129,8 @@
     "update.code_update_failed": "代碼更新失敗: :error",
     "update.migration_failed": "數據庫遷移失敗: :error",
     "update.cache_clear_failed": "緩存清理失敗: :error",
-    "update.flag_create_failed": "創建更新標記失敗: :error"
+    "update.flag_create_failed": "創建更新標記失敗: :error",
+    "You must agree to the required terms to sign up": "須同意全部必選條款後才能註冊",
+    "The terms have been updated, please review and agree again": "條款已更新，請重新閱讀並同意",
+    "Unsupported terms language": "不支援的條款語言"
 }
