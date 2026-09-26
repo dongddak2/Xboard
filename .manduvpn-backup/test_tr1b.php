@@ -64,7 +64,11 @@ try {
     };
     $register = function (array $extra = []) use ($req, $R, $emailVerify, &$emails) {
         $email = 'rollback-test-tr1b-reg-' . Str::lower(Str::random(10)) . '@example.invalid'; $emails[] = $email;
-        $body = ['email' => $email, 'password' => 'Pw-' . Str::random(16), 'email_code' => ''] + $extra;
+        $body = ['email' => $email, 'password' => 'Pw-' . Str::random(16), 'email_code' => ''] + $extra
+            // ManduVPN RC: the three mandatory signup consents are now required by the backend gate
+            // (RC_CONTRACTS.md §3). A happy-path signup fixture must supply them or every register returns 422.
+            + ['consent_version' => \App\Services\ConsentService::currentVersion(), 'consent_locale' => 'ko',
+               'consent_identity' => true, 'consent_account_sharing' => true, 'consent_payment_refund' => true];
         if ($emailVerify) { $body['email_code'] = (string) random_int(100000, 999999); Cache::put(CacheKey::get('EMAIL_VERIFY_CODE', $email), $body['email_code'], 300); }
         [$st, , $raw] = $req('POST', $R['register'], $body);
         return [$st, User::where('email', $email)->first(), $raw];
@@ -90,7 +94,10 @@ try {
     t_check('T1b no order row (payment table unchanged: INV-1)', $u1 && Order::where('user_id', $u1->id)->count() === 0);
     // ---- T2
     $again = TrialService::grantOnSignup(User::find($u1->id));
-    [$stDup] = $req('POST', $R['register'], ['email' => $u1->email, 'password' => 'Pw-' . Str::random(16), 'email_code' => '']);
+    [$stDup] = $req('POST', $R['register'], ['email' => $u1->email, 'password' => 'Pw-' . Str::random(16), 'email_code' => '',
+        // consent supplied so this still proves the DUPLICATE-EMAIL refusal, not the consent refusal
+        'consent_version' => \App\Services\ConsentService::currentVersion(), 'consent_locale' => 'ko',
+        'consent_identity' => true, 'consent_account_sharing' => true, 'consent_payment_refund' => true]);
     t_check('T2 exactly once: repeated grant no-op; duplicate email refused', $again === false && $state($u1) == $s1 && $stDup !== 200, "dup_http=$stDup");
     // ---- T3 kill switch off (baseline for T15)
     $setPolicy(['enable' => '0']); [$st, $u3] = $register(); $setPolicy(['enable' => '1']);

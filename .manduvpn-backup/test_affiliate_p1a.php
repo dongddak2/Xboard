@@ -61,7 +61,11 @@ DB::beginTransaction();
 try {
     $reg = function (array $extra) use ($http, $register, $emailVerify) {
         $email = 'rollback-test-aff-reg-' . Str::lower(Str::random(10)) . '@example.invalid';
-        $body = ['email' => $email, 'password' => 'Pw-' . Str::random(16), 'email_code' => ''] + $extra;
+        $body = ['email' => $email, 'password' => 'Pw-' . Str::random(16), 'email_code' => ''] + $extra
+            // ManduVPN RC: the three mandatory signup consents are now required by the backend gate
+            // (RC_CONTRACTS.md §3). A happy-path signup fixture must supply them or every register returns 422.
+            + ['consent_version' => \App\Services\ConsentService::currentVersion(), 'consent_locale' => 'ko',
+               'consent_identity' => true, 'consent_account_sharing' => true, 'consent_payment_refund' => true];
         if ($emailVerify) { $body['email_code'] = (string) random_int(100000, 999999); Cache::put(CacheKey::get('EMAIL_VERIFY_CODE', $email), $body['email_code'], 300); }
         [$st, $j, $raw] = aff_req($http, 'POST', $register, null, $body);
         return [$st, User::where('email', $email)->first(), $raw];
