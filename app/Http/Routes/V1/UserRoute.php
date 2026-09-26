@@ -34,6 +34,8 @@ class UserRoute
             $router->post('/order/cancel', 'V1\\User\\OrderController@cancel');
             // Plan
             $router->get ('/plan/fetch', 'V1\\User\\PlanController@fetch');
+            // Points (ManduVPN RC: referral reward points, RC_CONTRACTS.md §4 - read-only, spending out of scope)
+            $router->get ('/points', 'V1\\User\\PointsController@fetch');
             // Invite
             $router->get ('/invite/save', 'V1\\User\\InviteController@save');
             $router->get ('/invite/fetch', 'V1\\User\\InviteController@fetch');

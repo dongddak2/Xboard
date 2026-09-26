@@ -81,6 +81,13 @@ class OrderService
             if (!$order->save()) {
                 throw new \Exception('订单信息保存失败');
             }
+            // ManduVPN RC: referral reward POINTS on the invitee's first completed PAID order
+            // (RC_CONTRACTS.md §4). Inside this transaction, so the reward rolls back with the order if
+            // provisioning fails. Exactly-once is the DB's job (UNIQUE invitee_user_id), so a renewal or a
+            // second order grants nothing. grantForOrder() never throws: a points problem must not roll back an
+            // order that has already been paid and provisioned. Points are NOT cash - commission_balance and
+            // balance are untouched and the existing commission logic is unchanged.
+            PointsService::grantForOrder($order, $this->user);
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
