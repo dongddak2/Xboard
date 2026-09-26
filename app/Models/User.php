@@ -16,7 +16,14 @@ class User extends Authenticatable
         'created_at' => 'timestamp',
         'updated_at' => 'timestamp'
     ];
-    protected $hidden = ['password'];
+    // ManduVPN RC (security): password_salt / password_algo are legacy SSPanel password material and were being
+    // serialized to the admin browser by user/fetch's select('*'). Nothing needs them client-side - every use in
+    // the codebase is a PHP property read or write (Helper::multiPasswordVerify, the password-reset paths), which
+    // $hidden does not affect. Hiding them on the MODEL fixes every serializer at once (user/fetch,
+    // getUserInfoById, the staff endpoints) instead of one endpoint at a time.
+    // Deliberately NOT hidden here because removing them is a cross-agent response-contract change that needs
+    // WEB/APP sign-off: token, uuid, subscribe_url. See RC_BACKEND.md §5.
+    protected $hidden = ['password', 'password_salt', 'password_algo'];
 
 
     // 获取邀请人信息
