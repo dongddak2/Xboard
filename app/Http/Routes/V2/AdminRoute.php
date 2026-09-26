@@ -40,6 +40,22 @@ class AdminRoute
                 $router->post('/testSendMail', [ConfigController::class, 'testSendMail']);
                 $router->get('/trialPolicy', [\App\Http\Controllers\V2\Admin\TrialPolicyController::class, 'fetch']); // ManduVPN TR-1b
                 $router->post('/trialPolicy/save', [\App\Http\Controllers\V2\Admin\TrialPolicyController::class, 'save']); // ManduVPN TR-1b
+                $router->get('/consentTerms', [\App\Http\Controllers\V2\Admin\ConsentTermsController::class, 'fetch']); // ManduVPN RC
+                $router->post('/consentTerms/save', [\App\Http\Controllers\V2\Admin\ConsentTermsController::class, 'save']); // ManduVPN RC
+                $router->post('/consentTerms/reset', [\App\Http\Controllers\V2\Admin\ConsentTermsController::class, 'resetToDefault']); // ManduVPN RC
+                $router->get('/consentTerms/userHistory', [\App\Http\Controllers\V2\Admin\ConsentTermsController::class, 'userHistory']); // ManduVPN RC
+                $router->get('/pointsPolicy', [\App\Http\Controllers\V2\Admin\PointsController::class, 'fetchPolicy']); // ManduVPN RC
+                $router->post('/pointsPolicy/save', [\App\Http\Controllers\V2\Admin\PointsController::class, 'savePolicy']); // ManduVPN RC
+            });
+
+            // Referral points (ManduVPN RC, RC_CONTRACTS.md §4)
+            $router->group([
+                'prefix' => 'referralPoints'
+            ], function ($router) {
+                $router->get('/fetch', [\App\Http\Controllers\V2\Admin\PointsController::class, 'fetchRewards']);
+                $router->get('/user', [\App\Http\Controllers\V2\Admin\PointsController::class, 'fetchUser']);
+                $router->post('/adjust', [\App\Http\Controllers\V2\Admin\PointsController::class, 'adjust']);
+                $router->post('/revoke', [\App\Http\Controllers\V2\Admin\PointsController::class, 'revokeReward']);
             });
 
             // Plan
@@ -166,6 +182,15 @@ class AdminRoute
                 $router->post('/drop', [CouponController::class, 'drop']);
                 $router->post('/show', [CouponController::class, 'show']);
                 $router->post('/update', [CouponController::class, 'update']);
+            });
+
+            // ManduVPN RC W-7: read-only admin listing of issued invite codes, backing
+            // active/web/src/app/admin/invite-codes. No write route on purpose - register consumes a code with a
+            // conditional UPDATE and must stay the only writer.
+            $router->group([
+                'prefix' => 'inviteCode'
+            ], function ($router) {
+                $router->any('/fetch', [\App\Http\Controllers\V2\Admin\InviteCodeController::class, 'fetch']);
             });
 
             // Knowledge
