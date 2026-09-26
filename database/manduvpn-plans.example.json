@@ -1,0 +1,57 @@
+{
+  "_README": [
+    "ManduVPN RC: plan definition for `php artisan manduvpn:plan-data`.",
+    "Copy this file, fill in the REAL prices and group ids, then:",
+    "  php artisan manduvpn:plan-data validate --file=storage/app/manduvpn-plans.json",
+    "  php artisan manduvpn:plan-data seed     --file=storage/app/manduvpn-plans.json            (dry run)",
+    "  php artisan manduvpn:plan-data seed     --file=storage/app/manduvpn-plans.json --apply    (Owner approval)",
+    "  php artisan manduvpn:plan-data cutover --apply                                            (atomic switch-on)",
+    "UNITS - the single most common accident on this codebase:",
+    "  prices     = CNY in YUAN. PlanResource and OrderController multiply it by 100 to get fen.",
+    "  prices_krw = KRW in WON, stored exactly as written. No conversion, no FX.",
+    "  The two are INDEPENDENT list prices. Never derive one from the other.",
+    "RULES the validator enforces, so read them before editing:",
+    "  - service_tier must be legacy|basic|pro|master|vip. A plan NAME never implies a tier.",
+    "  - device_limit must be UNIQUE within one (audience, service_tier): it is the purchase-UI selector axis.",
+    "  - every partner row needs a public row with the SAME service_tier and device_limit, or partners see both.",
+    "  - every period that has a prices_krw entry must also have a prices entry, because",
+    "    PlanService::validatePurchase() requires a CNY price regardless of order currency (RC_BACKEND.md OD-1).",
+    "  - a legacy plan's group_id must contain at least one node with type=ikev2, show=1, parent_id IS NULL,",
+    "    or BasicServerAssignmentService 422-fails every purchase.",
+    "The values below are PLACEHOLDERS covering only days_30 and days_360 for one tier pair.",
+    "Real amounts, the full 12-period lineup and the group ids are an Owner decision (RC_BACKEND.md OD-2).",
+    "Rows are always seeded show=0 sell=0; nothing becomes visible until `cutover`."
+  ],
+  "plans": [
+    {
+      "name": "BASIC 1대",
+      "service_tier": "basic",
+      "audience": "public",
+      "group_id": 1,
+      "transfer_enable": 500,
+      "device_limit": 1,
+      "speed_limit": null,
+      "prices": { "days_30": 45, "days_360": 360 },
+      "prices_krw": { "days_30": 9000, "days_360": 72000 },
+      "sort": 100,
+      "content": null,
+      "reset_traffic_method": 0,
+      "capacity_limit": null
+    },
+    {
+      "name": "BASIC PARTNER 1대",
+      "service_tier": "basic",
+      "audience": "partner",
+      "group_id": 1,
+      "transfer_enable": 500,
+      "device_limit": 1,
+      "speed_limit": null,
+      "prices": { "days_30": 35, "days_360": 280 },
+      "prices_krw": { "days_30": 7000, "days_360": 56000 },
+      "sort": 101,
+      "content": null,
+      "reset_traffic_method": 0,
+      "capacity_limit": null
+    }
+  ]
+}
