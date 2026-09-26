@@ -222,7 +222,14 @@ class OrderController extends Controller
             $order->plan_id = $plan->id;
             $order->period = PlanService::getPeriodKey($request->input('period'));
             $order->trade_no = Helper::guid();
-            $order->total_amount = $request->input('total_amount');
+            $order->total_amount = (int) $request->input('total_amount');
+            // ManduVPN QA-W2: snapshot the currency the admin is granting in. This column used to be left NULL,
+            // and checkout reads NULL as CNY, so with only a KRW gateway enabled the customer could never pay an
+            // admin-granted order (the currency-mismatch guard refused it with 400 - that guard is untouched and
+            // is now simply given the truth to compare against). Omitting the parameter keeps the old CNY
+            // behaviour. v2_payment.currency remains the authority for what a gateway charges; this is only the
+            // order's own snapshot, written the same way OrderController::checkout writes it.
+            $order->currency = strtoupper((string) $request->input('currency', 'CNY'));
 
             if (PlanService::getPeriodKey($order->period) === Plan::PERIOD_RESET_TRAFFIC) {
                 $order->type = Order::TYPE_RESET_TRAFFIC;
@@ -235,6 +242,15 @@ class OrderController extends Controller
             }
 
             $orderService->setInvite($user);
+
+            // ManduVPN QA-W2: invite commission is CNY-only - commission_balance and v2_user.balance have no
+            // currency column - so a KRW order must never carry one. Checkout already enforces this for customer
+            // purchases; applying the same rule here stops the admin grant path from becoming the one way to
+            // attach a CNY commission to a KRW order.
+            if ($order->currency === 'KRW') {
+                $order->commission_balance = 0;
+                $order->invite_user_id = null;
+            }
 
             if (!$order->save()) {
                 DB::rollBack();

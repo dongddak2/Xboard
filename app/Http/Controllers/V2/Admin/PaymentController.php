@@ -60,10 +60,19 @@ class PaymentController extends Controller
             'icon' => 'nullable',
             'payment' => 'required',
             'config' => 'required',
+            // ManduVPN RC: v2_payment.currency is the ONLY authority for a gateway's sale currency
+            // (RC_CONTRACTS.md §5) but it was missing from this request, so a gateway created through the admin
+            // API silently kept the column default 'CNY'. A TossPayments row created that way is then refused at
+            // checkout by the KRW guard inside TossPayments (fail-closed, not a mischarge) and the gateway is
+            // simply unusable with no obvious cause. Required on create so a new gateway can never carry an
+            // unverified currency; optional on update so an admin form that omits it keeps the stored value.
+            'currency' => ($request->input('id') ? 'nullable' : 'required') . '|string|in:CNY,KRW',
             'notify_domain' => 'nullable|url',
             'handling_fee_fixed' => 'nullable|integer',
             'handling_fee_percent' => 'nullable|numeric|between:0,100'
         ], [
+            'currency.required' => 'A new payment gateway must declare its sale currency (CNY or KRW)',
+            'currency.in' => 'currency must be CNY or KRW',
             'name.required' => '显示名称不能为空',
             'payment.required' => '网关参数不能为空',
             'config.required' => '配置参数不能为空',
@@ -71,6 +80,11 @@ class PaymentController extends Controller
             'handling_fee_fixed.integer' => '固定手续费格式有误',
             'handling_fee_percent.between' => '百分比手续费范围须在0-100之间'
         ]);
+        // ManduVPN RC: an explicit null must not blank a stored currency - "omitted" and "cleared" are the same
+        // intent here, and a NULL currency would make the gateway's sale currency unknown.
+        if (array_key_exists('currency', $params) && $params['currency'] === null) {
+            unset($params['currency']);
+        }
         if ($request->input('id')) {
             $payment = Payment::find($request->input('id'));
             if (!$payment) return $this->fail([400202 ,'支付方式不存在']);
