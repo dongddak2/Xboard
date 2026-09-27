@@ -104,6 +104,10 @@ try {
     $otherGid = 9102;
     $user = $mkUser($gid);
     $auth = (new AuthService(User::find($user->id)))->generateAuthData()['auth_data'];
+    // A second account that never calls anything. Its only job is to give the leak check below a concrete
+    // foreign uuid to look for: "the caller's own uuid is returned" and "no other account's uuid is
+    // returned" are different claims, and only the first one was asserted before.
+    $other = $mkUser($otherGid);
 
     $ok = $mkServer(['group_ids' => [$gid]]);
     $hy1 = $mkServer(['group_ids' => [$gid], 'name' => 'rollback-test-hy1'], ['version' => 1]);
@@ -134,6 +138,9 @@ try {
     // The property itself, not a proxy for it: the fixture's obfs secret must appear nowhere in the body.
     // Previously mislabelled "carries no other user's uuid", which is NOT what it checks.
     t_check('H1 the obfs secret appears nowhere in the response body', !str_contains(json_encode($j), 'must-not-leak'));
+    // The claim the suite was missing. `H1 auth is THIS caller's uuid` only pins the credential field; this
+    // pins the whole body, so a foreign uuid cannot ride along in some other field either.
+    t_check('H1 no other account\'s uuid appears in the response body', !str_contains(json_encode($j), (string) $other->uuid));
 
     // --- the three refusals LEAD asked for, plus the neighbours that share the rule ---
     $refused('H2 version is not 2 -> 404 with our identifier', ['server_id' => $hy1->id], $auth);
