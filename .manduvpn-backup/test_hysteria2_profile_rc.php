@@ -122,8 +122,18 @@ try {
     t_check('H1 tls.server_name is the SNI', ($j['data']['tls']['server_name'] ?? null) === 'sni.example.invalid');
     t_check('H1 auth is THIS caller\'s uuid', ($j['data']['credential']['auth'] ?? null) === (string) $user->uuid);
     t_check('H1 Cache-Control is no-store', is_string($cc) && str_contains($cc, 'no-store'), (string) $cc);
-    t_check('H1 obfs password is withheld while obfs is off', ($j['data']['obfs']['open'] ?? true) === false && ($j['data']['obfs']['password'] ?? 'x') === null, json_encode($j['data']['obfs'] ?? null));
-    t_check('H1 response carries no other user\'s uuid', !str_contains(json_encode($j), 'must-not-leak'));
+    // `??` fires on null, not only on a missing key, so `($x['password'] ?? 'x') === null` can never be
+    // true - it yields 'x' in exactly the case this is meant to accept. The first version of this line was
+    // written that way and was therefore unsatisfiable: it failed closed on a correct response. Presence and
+    // null-ness are two separate questions here, so they get two separate checks.
+    $obfs = $j['data']['obfs'] ?? null;
+    t_check('H1 obfs password is withheld while obfs is off',
+        is_array($obfs) && ($obfs['open'] ?? true) === false
+        && array_key_exists('password', $obfs) && $obfs['password'] === null,
+        json_encode($obfs));
+    // The property itself, not a proxy for it: the fixture's obfs secret must appear nowhere in the body.
+    // Previously mislabelled "carries no other user's uuid", which is NOT what it checks.
+    t_check('H1 the obfs secret appears nowhere in the response body', !str_contains(json_encode($j), 'must-not-leak'));
 
     // --- the three refusals LEAD asked for, plus the neighbours that share the rule ---
     $refused('H2 version is not 2 -> 404 with our identifier', ['server_id' => $hy1->id], $auth);
