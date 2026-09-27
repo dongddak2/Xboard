@@ -137,6 +137,33 @@ try {
     t_check('H9 unknown and ineligible are indistinguishable (no node enumeration)',
         ($unknown['message'] ?? 'a') === ($ineligible['message'] ?? 'b') && ($unknown['error'] ?? 'a') === ($ineligible['error'] ?? 'b'));
 
+    // --- version typing: what the accessor's cast does and does not protect against ---
+    // A stored string "2" cannot be produced through Eloquent at all: setProtocolSettingsAttribute casts on
+    // WRITE too. So these rows are written with raw SQL, which is the only way the defect can exist.
+    $rawVersion = function ($value) use ($mkServer, $gid) {
+        $s = $mkServer(['group_ids' => [$gid]]);
+        $settings = json_decode(DB::table('v2_server')->where('id', $s->id)->value('protocol_settings'), true);
+        $settings['version'] = $value;
+        DB::table('v2_server')->where('id', $s->id)->update(['protocol_settings' => json_encode($settings)]);
+        return $s->id;
+    };
+    // MEASURED, NOT ASSUMED: PROTOCOL_CONFIGURATIONS['hysteria']['version'] is type 'integer' and
+    // castValueWithConfig does `(int) $value`, so the READ accessor turns "2" into int 2 before any
+    // comparison sees it. The string therefore does NOT degrade the node to Hysteria 1 - not here, and not
+    // in ClientController:161 / General:223 / Loon:212 / Surge:179 either, since all of them read through
+    // the same accessor. Asserting 404 here would assert something the code does not do. What this test
+    // pins down is that the cast is the thing doing the work, so nobody later "fixes" it with a loose
+    // operator and believes they changed the outcome.
+    [$stS2, $jS2] = $req(['server_id' => $rawVersion('2')], $auth);
+    t_check('H14 raw string "2" is still served: the accessor casts it to int 2 before comparison',
+        $stS2 === 200 && ($jS2['data']['schema'] ?? null) === 'manduvpn.hysteria2.profile.v1', "http=$stS2");
+    // The cast is not a validator: a non-numeric string becomes 0, which is not 2, so it is refused.
+    $refused('H15 raw string "abc" (casts to 0) -> 404 with our identifier', ['server_id' => $rawVersion('abc')], $auth);
+    // "2abc" also casts to 2. Recorded because it is the one input that really does slip through, and the
+    // fix for it is correcting the node record, not loosening or tightening this comparison.
+    [$stS3] = $req(['server_id' => $rawVersion('2abc')], $auth);
+    t_check('H16 raw string "2abc" also casts to 2 and is served - cast is not validation (POST-RC)', $stS3 === 200, "http=$stS3");
+
     // --- a port range must come back as port + ports, like the subscription's mport ---
     [$stR, $jR] = $req(['server_id' => $ranged->id], $auth);
     t_check('H10 port range yields ports = the range and port inside it',

@@ -165,7 +165,16 @@ class Hysteria2ProfileController extends Controller
         // Checked in PHP, not SQL, on purpose: the protocol_settings accessor applies the schema defaults
         // (version defaults to 2 when the key is absent), so a JSON path query would disagree with what
         // General::buildHysteria actually sees for a row that never stored the key.
-        if ((int) data_get($server->protocol_settings, 'version') !== self::SUPPORTED_VERSION) {
+        //
+        // STRICT ===, AND NO CAST OF OUR OWN. A misconfigured node must fall out as 404 rather than be
+        // served through a comparison loose enough to hide the defect. Note what this does and does not
+        // protect against: Server::PROTOCOL_CONFIGURATIONS['hysteria']['version'] is type 'integer' and
+        // castValueWithConfig does `(int) $value`, so the accessor has ALREADY turned a stored "2" into
+        // int 2 by the time we look - and that same cast turns "2abc" into 2. The looseness that matters
+        // therefore lives in the cast, not in the operator, and no comparison here can undo it. Writing
+        // `(int) data_get(...)` would add a second cast of our own and make the operator meaningless, so
+        // it is deliberately absent.
+        if (data_get($server->protocol_settings, 'version') !== self::SUPPORTED_VERSION) {
             return null;
         }
 
