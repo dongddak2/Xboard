@@ -53,6 +53,7 @@ class UserRoute
             // ManduVPN APP-BLOCK-1: IKEv2 connection profile for ONE node (address + this user's own credential).
             // Single-node only on purpose - /server/fetch stays credential-free, so no list can leak a secret.
             $router->get ('/server/ikev2/profile', 'V1\\User\\Ikev2ProfileController@profile');
+            $router->get ('/server/hysteria2/profile', 'V1\\User\\Hysteria2ProfileController@profile');
             // Coupon
             $router->post('/coupon/check', 'V1\\User\\CouponController@check');
             // Telegram
