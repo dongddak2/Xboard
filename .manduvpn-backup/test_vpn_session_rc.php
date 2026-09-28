@@ -97,18 +97,36 @@ try {
     };
     // KEY ORDER MATTERS. Server::setProtocolSettingsAttribute picks its schema from $this->type, so `type`
     // must be filled BEFORE `protocol_settings` or the hysteria schema is not applied.
-    // `rate` IS REQUIRED BY THE SCHEMA, NOT BY THIS ENDPOINT. v2_server.rate is decimal(8,2) with neither
-    // nullable nor a default (2025_01_05_131425_create_v2_server_table.php:23), so an insert without it fails
-    // with "NOT NULL constraint failed: v2_server.rate" before any route code runs. Nothing in the session
-    // path reads it - which is exactly why it was missed: this fixture was built from the columns the
-    // ENDPOINT reads, and a fixture's field list is dictated by the TABLE's NOT NULL columns instead.
-    // All eleven sibling suites in this directory already set it.
+    // THE COLUMN LIST BELOW MATCHES test_hysteria2_profile_rc.php's $mkServer, KEY FOR KEY. Two fixture bugs
+    // in two runs (`rate` missing, then ['auth_data'] missing) were both deviations from that sibling, each
+    // found one HTTP call at a time, and each cost a full round-trip on a host with no way to run the suite.
+    // So the whole skeleton was diffed against the sibling instead of patching the reported line, and every
+    // column the sibling sets is now set here - including `code`, `route_ids`, `tags` and `sort`, which this
+    // endpoint never reads. That is the point: a fixture's field list is dictated by the TABLE, not by what
+    // the code under test happens to read. `rate` is decimal(8,2) with neither nullable nor a default
+    // (2025_01_05_131425_create_v2_server_table.php:23), which is why omitting it aborted the insert before
+    // any route code ran.
+    //
+    // DELIBERATE DIFFERENCES FROM THE SIBLING, each with its reason - anything not listed here is a mistake:
+    //  - Signature takes $type explicitly instead of the sibling's ($attrs, $settings). This endpoint is
+    //    multi-protocol (it selects the node type FROM the requested protocol), so type varies per fixture,
+    //    while the profile endpoint it was copied from only ever builds hysteria nodes.
+    //  - No protocol_settings defaults. The sibling defaults version/bandwidth/obfs/tls because it asserts on
+    //    those fields; here the settings are supplied per fixture so a Hysteria 1 node can be built.
+    //  - $req posts a JSON body and sets CONTENT_TYPE (the sibling GETs a query string): this route is POST.
+    //  - REMOTE_ADDR uses 10.253.x rather than the sibling's 10.252.x, so the two suites' requests stay
+    //    distinguishable in any log that records them.
+    //  - $refused takes the expected status and identifier as arguments instead of hardcoding 404 /
+    //    HY2_SERVER_NOT_ELIGIBLE: this endpoint refuses with three identifiers across 403 and 422.
+    //  - The catch / Z4 pair has no sibling equivalent; it was added after an aborted run exited 0.
     $mkServer = function (string $type, array $groupIds, array $settings = [], bool $show = true, $parentId = null) {
         $s = new Server();
         $s->forceFill(['type' => $type])->forceFill([
+            'code' => 'rbs-' . Str::lower(Str::random(12)),
             'name' => 'rb-sess-' . Str::random(6), 'rate' => 1,
             'host' => '198.51.100.' . random_int(1, 254), 'port' => '443', 'server_port' => 443,
-            'group_ids' => $groupIds, 'show' => $show, 'parent_id' => $parentId,
+            'group_ids' => $groupIds, 'route_ids' => [], 'tags' => [],
+            'show' => $show, 'sort' => 999, 'parent_id' => $parentId,
             'protocol_settings' => $settings,
         ])->save();
         return $s;
@@ -116,7 +134,12 @@ try {
 
     $group = 900 + random_int(1, 90);
     $user = $mkUser($group);
-    $auth = (new AuthService($user))->generateAuthData();
+    // generateAuthData() RETURNS AN ARRAY, and the bearer string is its 'auth_data' key. Passing the array
+    // itself to HTTP_AUTHORIZATION reaches Symfony ServerBag::getHeaders, whose stripos() throws
+    // "TypeError: array given". All 28 call sites across the 21 sibling suites use ['auth_data'].
+    // The user is re-read with User::find for the same reason the siblings do it - see the skeleton note at
+    // the top of the fixture block.
+    $auth = (new AuthService(User::find($user->id)))->generateAuthData()['auth_data'];
     $other = $mkUser($group + 1);
 
     $hy2 = $mkServer(Server::TYPE_HYSTERIA, [$group], ['version' => 2, 'tls' => ['server_name' => 'sess.example.invalid']]);
@@ -190,7 +213,9 @@ try {
         $auth, 422, 'PROTOCOL_NOT_ALLOWED');
 
     // --- another account cannot obtain a session for a node it may not use (on SQLite) ---
-    $otherAuth = (new AuthService($other))->generateAuthData();
+    // Same two corrections as the first token. This line had the identical defect and had simply not been
+    // reached yet when the run aborted earlier - an unreached line is not a working line.
+    $otherAuth = (new AuthService(User::find($other->id)))->generateAuthData()['auth_data'];
     $refused('S21 a different account is refused for this group node (identity comes from the token only)',
         $base + ['serverId' => (string) $hy2->id], $otherAuth, 403, 'SERVER_NOT_ALLOWED');
 
