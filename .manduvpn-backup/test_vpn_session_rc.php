@@ -17,10 +17,23 @@
 // VpnErrorCode.fromServerCode (vpn_error.dart:22), a fixed vocabulary; an unrecognised name becomes
 // VpnErrorCode.unknown, i.e. "unknown error" on screen. The names are part of the contract.
 //
-// ★ ELIGIBILITY IS ASSERTED ON SQLITE. The test panel DB is SQLite (RC_CONTRACTS.md §1.2-c) and
-// whereJsonContains compiles to engine-specific SQL - json_each on SQLite, JSON_CONTAINS on MySQL. Every
-// group_ids-dependent result below (S1, S12-S18, S21) is therefore "passed ON SQLITE" and says nothing about
-// MySQL. Do not shorten that to "passed".
+// ★ WHICH RESULTS ARE SQLITE-ONLY, AND THE RULE THAT DECIDES IT. The test panel DB is SQLite
+// (RC_CONTRACTS.md §1.2-c) and whereJsonContains compiles to engine-specific SQL - json_each on SQLite,
+// JSON_CONTAINS on MySQL. Marked labels are "passed ON SQLITE" and say nothing about MySQL; do not shorten
+// that to "passed".
+//
+// THE RULE: a grant traverses the engine match to succeed, so it is marked. A refusal is fail-closed and
+// therefore robust to engine differences - but it is marked when the refusal is REACHED THROUGH that match,
+// i.e. the node had to be found before another predicate rejected it. A refusal decided before the query
+// (subscription, protocol, routingMode, auth, validation) or by the absence of any row is NOT marked.
+//
+// MARKED: S1-S17 and S21.  S1/S12 are grants; S2-S11 ride on S1's 200 and share its fate; S13-S17 and S21
+// are refusals reached through the match. NOT MARKED: S18 (no such row at all), S19/S20/S25 (refused before
+// the query), S22-S24 (auth and validation).
+//
+// The risk is one-directional and that matters more than the count: if the match behaves differently on
+// MySQL, the refusals still refuse, and what breaks is issuance (S1, S12) plus the body assertions carried on
+// it (S2-S11).
 //
 // Usage (test server only, never production):
 //   docker exec -w /www xboard-test-web-1 php /www/.manduvpn-backup/test_vpn_session_rc.php
@@ -155,36 +168,36 @@ try {
     [$st1, $j1, $cc] = $req($base + ['serverId' => (string) $hy2->id], $auth);
     $d = $j1['data'] ?? [];
     t_check('S1 an eligible hysteria2 node yields a session (on SQLite)', $st1 === 200, "http=$st1 " . json_encode($j1['error'] ?? null));
-    t_check('S2 sessionId is present and a non-empty string (the app non-null casts it)',
+    t_check('S2 sessionId is present and a non-empty string (the app non-null casts it) (on SQLite)',
         isset($d['sessionId']) && is_string($d['sessionId']) && $d['sessionId'] !== '', json_encode($d['sessionId'] ?? null));
-    t_check('S3 serverId comes back as a STRING, not an int (app parses it as String?)',
+    t_check('S3 serverId comes back as a STRING, not an int (app parses it as String?) (on SQLite)',
         array_key_exists('serverId', $d) && $d['serverId'] === (string) $hy2->id,
         var_export($d['serverId'] ?? null, true));
-    t_check('S4 status is ACTIVE explicitly, not left to the app default',
+    t_check('S4 status is ACTIVE explicitly, not left to the app default (on SQLite)',
         ($d['status'] ?? null) === 'ACTIVE', json_encode($d['status'] ?? null));
-    t_check('S5 connectionConfig key is ABSENT (it would overwrite the verified profile credential)',
+    t_check('S5 connectionConfig key is ABSENT (it would overwrite the verified profile credential) (on SQLite)',
         !array_key_exists('connectionConfig', $d), json_encode(array_keys($d)));
-    t_check('S6 connectedAt parses as a date (app uses DateTime.tryParse)',
+    t_check('S6 connectedAt parses as a date (app uses DateTime.tryParse) (on SQLite)',
         isset($d['connectedAt']) && strtotime((string) $d['connectedAt']) !== false, json_encode($d['connectedAt'] ?? null));
-    t_check('S7 deviceId and routingMode are echoed back unchanged',
+    t_check('S7 deviceId and routingMode are echoed back unchanged (on SQLite)',
         ($d['deviceId'] ?? null) === 'synthetic-device-0001' && ($d['routingMode'] ?? null) === 'FULL_TUNNEL',
         json_encode([$d['deviceId'] ?? null, $d['routingMode'] ?? null]));
-    t_check('S8 response is not cacheable (Cache-Control: no-store)', str_contains((string) $cc, 'no-store'), (string) $cc);
-    t_check('S9 no credential value appears anywhere in the body',
+    t_check('S8 response is not cacheable (Cache-Control: no-store) (on SQLite)', str_contains((string) $cc, 'no-store'), (string) $cc);
+    t_check('S9 no credential value appears anywhere in the body (on SQLite)',
         !str_contains(json_encode($j1), (string) $user->uuid) && !str_contains(json_encode($j1), (string) $user->token));
 
     // --- the row was actually written, and it records what was issued ---
     if ($hasTable) {
         $row = DB::table('v2_vpn_session')->where('session_id', $d['sessionId'] ?? '')->first();
-        t_check('S10 a session row was written for this user and node',
+        t_check('S10 a session row was written for this user and node (on SQLite)',
             $row !== null && (int) $row->user_id === (int) $user->id && (int) $row->server_id === (int) $hy2->id
             && $row->status === 'ACTIVE' && $row->protocol === 'hysteria2',
             $row === null ? 'no row' : json_encode(['u' => $row->user_id, 's' => $row->server_id, 'st' => $row->status]));
-        t_check('S11 last_heartbeat_at starts null (no heartbeat route yet - documented ceiling)',
+        t_check('S11 last_heartbeat_at starts null (no heartbeat route yet - documented ceiling) (on SQLite)',
             $row !== null && $row->last_heartbeat_at === null, $row === null ? 'no row' : var_export($row->last_heartbeat_at, true));
     } else {
-        t_check('S10 a session row was written for this user and node', false, 'table missing');
-        t_check('S11 last_heartbeat_at starts null (no heartbeat route yet - documented ceiling)', false, 'table missing');
+        t_check('S10 a session row was written for this user and node (on SQLite)', false, 'table missing');
+        t_check('S11 last_heartbeat_at starts null (no heartbeat route yet - documented ceiling) (on SQLite)', false, 'table missing');
     }
 
     // --- an ikev2 node is issuable too, and the protocol selects the node type ---
@@ -194,7 +207,7 @@ try {
         "http=$stI " . json_encode($jI['data']['routingMode'] ?? ($jI['error'] ?? null)));
 
     // --- REFUSALS. Each asserts the identifier AND that it is not a 200. ---
-    $refused('S13 asking for a hysteria node with protocol=ikev2 is refused (type must match, on SQLite)',
+    $refused('S13 asking for a hysteria node with protocol=ikev2 is refused - type must match (on SQLite)',
         ['deviceId' => 'd', 'protocol' => 'ikev2', 'serverId' => (string) $hy2->id], $auth, 403, 'SERVER_NOT_ALLOWED');
     $refused('S14 a Hysteria 1 node is refused - the profile endpoint could not serve it either (on SQLite)',
         $base + ['serverId' => (string) $hy1->id], $auth, 403, 'SERVER_NOT_ALLOWED');
@@ -216,7 +229,7 @@ try {
     // Same two corrections as the first token. This line had the identical defect and had simply not been
     // reached yet when the run aborted earlier - an unreached line is not a working line.
     $otherAuth = (new AuthService(User::find($other->id)))->generateAuthData()['auth_data'];
-    $refused('S21 a different account is refused for this group node (identity comes from the token only)',
+    $refused('S21 a different account is refused for this group node (identity comes from the token only) (on SQLite)',
         $base + ['serverId' => (string) $hy2->id], $otherAuth, 403, 'SERVER_NOT_ALLOWED');
 
     // --- auth and input validation ---
