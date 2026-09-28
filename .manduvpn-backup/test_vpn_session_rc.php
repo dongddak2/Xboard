@@ -58,6 +58,10 @@ $serverCountBefore = DB::table('v2_server')->count();
 $userCountBefore = DB::table('v2_user')->count();
 $sessionCountBefore = $hasTable ? DB::table('v2_vpn_session')->count() : 0;
 
+// Set only when the assertion block runs to its end. Z4 reports it, so "stopped early" can never be read as
+// "everything passed" - see the catch below.
+$completed = false;
+
 DB::beginTransaction();
 try {
     $req = function (array $body, $auth = null) use ($http, $URI) {
@@ -93,10 +97,16 @@ try {
     };
     // KEY ORDER MATTERS. Server::setProtocolSettingsAttribute picks its schema from $this->type, so `type`
     // must be filled BEFORE `protocol_settings` or the hysteria schema is not applied.
+    // `rate` IS REQUIRED BY THE SCHEMA, NOT BY THIS ENDPOINT. v2_server.rate is decimal(8,2) with neither
+    // nullable nor a default (2025_01_05_131425_create_v2_server_table.php:23), so an insert without it fails
+    // with "NOT NULL constraint failed: v2_server.rate" before any route code runs. Nothing in the session
+    // path reads it - which is exactly why it was missed: this fixture was built from the columns the
+    // ENDPOINT reads, and a fixture's field list is dictated by the TABLE's NOT NULL columns instead.
+    // All eleven sibling suites in this directory already set it.
     $mkServer = function (string $type, array $groupIds, array $settings = [], bool $show = true, $parentId = null) {
         $s = new Server();
         $s->forceFill(['type' => $type])->forceFill([
-            'name' => 'rb-sess-' . Str::random(6),
+            'name' => 'rb-sess-' . Str::random(6), 'rate' => 1,
             'host' => '198.51.100.' . random_int(1, 254), 'port' => '443', 'server_port' => 443,
             'group_ids' => $groupIds, 'show' => $show, 'parent_id' => $parentId,
             'protocol_settings' => $settings,
@@ -196,6 +206,18 @@ try {
     DB::table('v2_user')->where('id', $user->id)->update(['expired_at' => time() - 3600]);
     $refused('S25 expired subscription is refused with SUBSCRIPTION_EXPIRED',
         $base + ['serverId' => (string) $hy2->id], $auth, 403, 'SUBSCRIPTION_EXPIRED');
+
+    $completed = true;
+} catch (\Throwable $e) {
+    // AN ABORT IS A FAILURE, NOT A QUIET STOP. Without this catch an exception left the script through
+    // Laravel's global handler, which printed a trace but did NOT make the suite report failure: the first run
+    // of this file died on a fixture insert after 3 of its assertions and the shell still saw exit=0. A gate
+    // that exits 0 when it never reached its own verdict is worse than no gate, because a caller that only
+    // checks the exit code reads the crash as a pass. The value is counted as a failure here and Z4 below says
+    // plainly that the run did not finish.
+    $fails++;
+    echo 'FAIL suite aborted by an exception -- ' . get_class($e) . ': ' . $e->getMessage()
+        . ' @ ' . $e->getFile() . ':' . $e->getLine() . "\n";
 } finally {
     DB::rollBack();
 }
@@ -207,6 +229,7 @@ t_check('Z3 row counts unchanged, INCLUDING the sessions this suite issued',
     && DB::table('v2_user')->count() === $userCountBefore
     && (!$hasTable || DB::table('v2_vpn_session')->count() === $sessionCountBefore),
     $hasTable ? ('sessions=' . DB::table('v2_vpn_session')->count() . ' before=' . $sessionCountBefore) : 'table missing');
+t_check('Z4 the suite reached the end of its assertion block (a partial run is not a pass)', $completed);
 
 echo ($fails === 0 ? "ALL PASS\n" : "FAILURES: $fails\n");
 exit($fails === 0 ? 0 : 1);
