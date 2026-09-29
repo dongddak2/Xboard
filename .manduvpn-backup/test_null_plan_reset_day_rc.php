@@ -144,6 +144,14 @@ try {
     // The branch the guard is most easily confused with: a plan that EXISTS but whose method is NULL falls
     // through to admin_setting('reset_traffic_method'). That must keep happening - the guard is about a missing
     // PLAN, not a missing METHOD.
+    // ★THIS IS THE ASSERTION THAT REFUSES `$user->plan?->reset_traffic_method`.★ Turning the seven reads into
+    // null-safe ones looks like the tidier fix and was proposed as such, but `?->` puts "no plan" and "a plan
+    // whose method is NULL" in the SAME bucket: both reach the `=== NULL` case and get the system-wide reset
+    // day. For a plan-less user that day never arrives - ResetTraffic.php:48-58 selects
+    // ->whereIn('plan_id', $planIds), so they are in no group and are never reset - so the value would be a
+    // promise the system does not keep. The two states must stay distinguishable: plan-less -> null (above),
+    // plan without an override -> the system setting (here). If this line is green while the guard is gone,
+    // read it again before "simplifying".
     $follow = $svc->getResetDay(User::find($uFollow->id));
     t_check('R3-d control: plan EXISTS with reset_traffic_method NULL still follows the system setting',
         $follow === null || is_int($follow), var_export($follow, true));
