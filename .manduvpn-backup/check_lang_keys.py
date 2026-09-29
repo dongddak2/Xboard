@@ -76,6 +76,12 @@ for loc in ("ko-KR", "ja-JP"):
 #    lockout. Reproduce live with a NONEXISTENT email only: :243 returns 400 without
 #    incrementing the password-error counter, so it cannot lock anybody out. A real
 #    account tried 5 times locks for 60 minutes.
+#    On the test panel as measured 2026-09-30 that lockout does NOT fire at all: no
+#    password_limit_* row exists in v2_settings, and the increment at :251 reads the
+#    setting WITHOUT a default while the check at :232 defaults to 1 -- so the counter
+#    is never written and 429 is unreachable. Do not delete the warning above on the
+#    strength of "it did not lock": it is correct as soon as those settings exist, and
+#    it is the operational default the code assumes.
 WRONG_PW = "Incorrect email or password"
 LOCKED = "There are too many password errors, please try again after :minute minutes."
 check(HANGUL.search(translate(WRONG_PW, "ko-KR")), "ko-KR wrong-password is not Korean")
