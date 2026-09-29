@@ -68,9 +68,9 @@ class ServerService
      * @param array $groupIds
      * @return Collection
      */
-    public static function getAvailableUsers(array $groupIds, ?int $nodeId = null)
+    public static function getAvailableUsers(array $groupIds, ?int $nodeId = null, ?string $nodeType = null)
     {
-        return User::toBase()
+        $users = User::toBase()
             ->whereIn('group_id', $groupIds)
             ->whereRaw('u + d < transfer_enable')
             ->where(function ($query) {
@@ -98,6 +98,17 @@ class ServerService
                 'device_limit'
             ])
             ->get();
+
+        // ManduVPN HY2-CRED-1: a hysteria node authenticates the SHORT-LIVED credential, not v2_user.uuid. The
+        // swap happens here, on the node's own list, because that is where expiry is actually enforced: a user
+        // whose credential has lapsed is absent from the list, so the node has no value to accept. Callers that
+        // pass no node type (the Tidalab controllers, the IKEv2 node API, the device-limit count in
+        // UniProxyController@alivelist) are byte-identical to before - the device-limit count in particular must
+        // NOT be filtered by credential presence, or a user without a live credential would stop being counted.
+        if ($nodeType !== null && Server::normalizeType($nodeType) === Server::TYPE_HYSTERIA) {
+            return Hy2CredentialService::applyToNodeUsers($users);
+        }
+        return $users;
     }
 
     // ManduVPN PP-C1: service tier of the user's CURRENT plan (explicit plan.service_tier only - never names,

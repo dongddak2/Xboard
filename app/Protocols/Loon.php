@@ -2,6 +2,8 @@
 
 namespace App\Protocols;
 
+use App\Services\Hy2CredentialService;
+
 use App\Contracts\ProtocolInterface;
 
 class Loon implements ProtocolInterface
@@ -47,7 +49,8 @@ class Loon implements ProtocolInterface
                 $uri .= self::buildTrojan($user['uuid'], $item);
             }
             if ($item['type'] === 'hysteria') {
-                $uri .= self::buildHysteria($user['uuid'], $item, $user);
+                // ManduVPN HY2-CRED-1: the hysteria password is the short-lived credential, not uuid.
+                $uri .= self::buildHysteria(Hy2CredentialService::password($user), $item, $user);
             }
         }
         return response($uri, 200)

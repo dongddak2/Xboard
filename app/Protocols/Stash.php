@@ -2,6 +2,8 @@
 
 namespace App\Protocols;
 
+use App\Services\Hy2CredentialService;
+
 use App\Models\ServerHysteria;
 use Symfony\Component\Yaml\Yaml;
 use App\Contracts\ProtocolInterface;
@@ -75,7 +77,8 @@ class Stash implements ProtocolInterface
                 array_push($proxies, $item['name']);
             }
             if ($item['type'] === 'hysteria') {
-                array_push($proxy, self::buildHysteria($user['uuid'], $item));
+                // ManduVPN HY2-CRED-1: the hysteria password is the short-lived credential, not uuid.
+                array_push($proxy, self::buildHysteria(Hy2CredentialService::password($user), $item));
                 array_push($proxies, $item['name']);
             }
             if ($item['type'] === 'trojan') {

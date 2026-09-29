@@ -27,7 +27,9 @@ class UniProxyController extends Controller
         $nodeType = $node->type;
         $nodeId = $node->id;
         Cache::put(CacheKey::get('SERVER_' . strtoupper($nodeType) . '_LAST_CHECK_AT', $nodeId), time(), 3600);
-        $users = ServerService::getAvailableUsers($node->group_ids, (int) $node->id); // ManduVPN PP-C1: node-aware (BASIC single server)
+        // ManduVPN HY2-CRED-1: the node type is passed so a hysteria node is handed the short-lived credential
+        // instead of v2_user.uuid. Every other node type is unaffected.
+        $users = ServerService::getAvailableUsers($node->group_ids, (int) $node->id, (string) $nodeType); // ManduVPN PP-C1: node-aware (BASIC single server)
 
         $response['users'] = $users;
 

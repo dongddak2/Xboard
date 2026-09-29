@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Server;
 use App\Models\User;
 use App\Services\BasicServerAssignmentService;
+use App\Services\Hy2CredentialService;
 use App\Services\ServerService;
 use App\Services\UserService;
 use Illuminate\Http\Request;
@@ -51,11 +52,14 @@ use Illuminate\Http\Request;
  * hold it. It is therefore sent only over an authenticated single-node read, with Cache-Control: no-store,
  * and it is never written to a log, an error message or an exception.
  *
- * CREDENTIAL LIFETIME - STATED PLAINLY BECAUSE THIS ENDPOINT DOES NOT FIX IT. auth is v2_user.uuid. It is
- * long-lived: there is no expiry and no renewal cycle, and the only rotation path is /user/resetSecurity,
- * which also rotates v2_user.token. A short-lived per-user Hysteria2 credential would need its own table,
- * i.e. a migration, which is out of scope here. What this endpoint improves is the TRANSPORT (bearer token,
- * no-store, nothing in the URL), not the lifetime. Do not read it as having improved the lifetime.
+ * CREDENTIAL LIFETIME (ManduVPN HY2-CRED-1, RC_CONTRACTS §23.57). auth is NO LONGER v2_user.uuid. It is the
+ * short-lived per-user credential in v2_vpn_hy2_credential, and THIS READ IS WHAT ISSUES OR RENEWS IT: what
+ * the app is handed here always has a full TTL of life ahead of it, so it cannot lapse between this response
+ * and the handshake. Expiry is enforced on the node's user list, not here - a lapsed credential is simply not
+ * served to the node, so the node has no value to accept. Two consequences worth knowing before debugging a
+ * failed connect: (1) a brand-new secret reaches the node only on its next pull (pull_interval, default 60s),
+ * the same lower bound ban / expiry / quota propagation already has; (2) rotating uuid deletes the credential
+ * (User::booted), so a reset-security immediately invalidates it.
  *
  * NOT VERIFIED AT RUNTIME: this code is syntax-checked and reviewed only. No tunnel has been raised with
  * it, and three inputs are unmeasured on every host - the eligible node's protocol_settings.version, its
@@ -129,8 +133,10 @@ class Hysteria2ProfileController extends Controller
                     'down' => data_get($settings, 'bandwidth.down'),
                 ],
                 'credential' => [
-                    // Long-lived. See CREDENTIAL LIFETIME in the class note before relying on this.
-                    'auth' => (string) $user->uuid,
+                    // ManduVPN HY2-CRED-1: the short-lived credential, issued or renewed by this read. See
+                    // CREDENTIAL LIFETIME in the class note. The field name is unchanged on purpose - the app
+                    // reads `auth` and needs no rebuild for this.
+                    'auth' => (string) Hy2CredentialService::password($user),
                 ],
             ],
         ])->header('Cache-Control', 'no-store')->header('Pragma', 'no-cache');

@@ -2,6 +2,8 @@
 
 namespace App\Protocols;
 
+use App\Services\Hy2CredentialService;
+
 use App\Utils\Helper;
 use App\Contracts\ProtocolInterface;
 
@@ -54,7 +56,8 @@ class Surge implements ProtocolInterface
                 $proxyGroup .= $item['name'] . ', ';
             }
             if ($item['type'] === 'hysteria') {
-                $proxies .= self::buildHysteria($user['uuid'], $item);
+                // ManduVPN HY2-CRED-1: the hysteria password is the short-lived credential, not uuid.
+                $proxies .= self::buildHysteria(Hy2CredentialService::password($user), $item);
                 $proxyGroup .= $item['name'] . ', ';
             }
         }

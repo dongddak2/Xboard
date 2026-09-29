@@ -2,6 +2,8 @@
 
 namespace App\Protocols;
 
+use App\Services\Hy2CredentialService;
+
 use App\Contracts\ProtocolInterface;
 use App\Models\ServerHysteria;
 use App\Utils\Helper;
@@ -71,7 +73,8 @@ class ClashMeta implements ProtocolInterface
                 array_push($proxies, $item['name']);
             }
             if ($item['type'] === 'hysteria') {
-                array_push($proxy, self::buildHysteria($user['uuid'], $item, $user));
+                // ManduVPN HY2-CRED-1: the hysteria password is the short-lived credential, not uuid.
+                array_push($proxy, self::buildHysteria(Hy2CredentialService::password($user), $item, $user));
                 array_push($proxies, $item['name']);
             }
             if ($item['type'] === 'tuic') {

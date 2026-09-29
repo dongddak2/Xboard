@@ -1,6 +1,8 @@
 <?php
 namespace App\Protocols;
 
+use App\Services\Hy2CredentialService;
+
 use App\Utils\Helper;
 use App\Contracts\ProtocolInterface;
 
@@ -77,7 +79,8 @@ class SingBox implements ProtocolInterface
                 $proxies[] = $vlessConfig;
             }
             if ($item['type'] === 'hysteria') {
-                $hysteriaConfig = $this->buildHysteria($this->user['uuid'], $item);
+                // ManduVPN HY2-CRED-1: the hysteria password is the short-lived credential, not uuid.
+                $hysteriaConfig = $this->buildHysteria(Hy2CredentialService::password($this->user), $item);
                 $proxies[] = $hysteriaConfig;
             }
             if ($item['type'] === 'tuic') {
