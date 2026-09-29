@@ -58,6 +58,18 @@ class UserService
         }
         if ($user->expired_at <= time() || $user->expired_at === NULL)
             return null;
+        // ManduVPN NULL-PLAN-RESET-DAY: a user with no plan is never reset, so there is no reset day to
+        // report. ResetTraffic groups by plan and then selects ->whereIn('plan_id', $planIds)
+        // (ResetTraffic.php:48-58), so plan_id NULL matches no group and that traffic is never reset -
+        // returning a date here would be a lie. null is the value this function already uses for "no reset
+        // scheduled" (the expired branch above), and the app omits the row when it is null
+        // (home_page.dart:856, account_page.dart:342), so no response field changes.
+        // Without this guard every read below dereferences null: PHP warns, Laravel turns the warning into
+        // an ErrorException, and /user/getSubscribe answers 500 (measured 5x) - as does the client config
+        // path through ClientController:204. The guard sits here, in the shared function, because both
+        // callers receive the same null.
+        if ($user->plan === null)
+            return null;
         // if reset method is not reset
         if ($user->plan->reset_traffic_method === 2)
             return null;
