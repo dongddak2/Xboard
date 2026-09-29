@@ -54,22 +54,38 @@ class Hy2CredentialService
     public const SECRET_PATTERN = '/^[A-Za-z0-9]{32}$/';
 
     /**
-     * THIS IS NOT THE ADOPTED TTL. The value is deliberately undecided (LEAD, §23.57 condition 6): the lower
-     * bound depends on two unmeasured node-side facts - whether an already-established tunnel survives the
-     * node's user list changing, and the node's own pull cadence - and INFRA is measuring them. This fallback
-     * exists only so the path is runnable before the value is fixed; the adopted value will arrive as
-     * admin_setting('manduvpn_hy2_credential_ttl_seconds') and nothing in this class needs to change for it.
+     * ★THE ADOPTED LIFETIME: 24 HOURS★ (LEAD, RC_CONTRACTS §23.62). The authority is the setting below; this is
+     * the value used when no setting has been written. THE NAME IS KEPT UNCHANGED ON INSTRUCTION so that nothing
+     * else has to move - read it as "the code-side default", not as "not yet decided", because 86400 IS the
+     * decided value.
+     *
+     * THE FOUR GROUNDS, at the same place as the number:
+     *  1. Three orders of magnitude above the propagation floor (the node's pull_interval, default 60s), so no
+     *     credential can lapse anywhere near the moment it is being propagated.
+     *  2. ★The decisive one: because a read RENEWS (see "READ RENEWS" above), this is effectively rolling.★ Every
+     *     profile or subscription fetch pushes the expiry out, so an active user never reaches it. What the
+     *     expiry actually bites is a credential that has not been read for 24 hours - which is exactly the
+     *     exposure this table exists to close.
+     *  3. The exposure goes from "permanent, revocable only by rotating the subscription identity" to "one day".
+     *     That is enough for the purpose.
+     *  4. Changing it costs one setting and no code, so starting generous and tightening is the cheap direction;
+     *     starting tight and discovering breakage in the field is the expensive one.
+     *
+     * STATED PLAINLY: any finite lifetime breaks a third-party client that caches a subscription for longer than
+     * it. 86400 reduces that, it does not remove it; the client recovers by re-fetching, and the knob if field
+     * reports arrive is the setting, not this constant.
+     *
      * The RC suite forces expiry by writing expires_at into the past inside its rolled-back transaction, so no
      * test result depends on this number and no test writes a setting.
      */
-    public const TTL_SECONDS_PROVISIONAL_NOT_ADOPTED = 3600;
+    public const TTL_SECONDS_PROVISIONAL_NOT_ADOPTED = 86400;
 
     public const TTL_SETTING_KEY = 'manduvpn_hy2_credential_ttl_seconds';
 
     /** Per-request memo, so one subscription build with several hysteria nodes writes the row once. */
     private static array $memo = [];
 
-    /** The configured lifetime in seconds. See TTL_SECONDS_PROVISIONAL_NOT_ADOPTED before reading a meaning into it. */
+    /** The lifetime in seconds: the setting if one is written, otherwise the adopted 24 hours. Grounds: see the constant. */
     public static function ttlSeconds(): int
     {
         $ttl = (int) admin_setting(self::TTL_SETTING_KEY, self::TTL_SECONDS_PROVISIONAL_NOT_ADOPTED);
