@@ -47,11 +47,21 @@ function t_check($n, $ok, $d = '') { global $fails; if (!$ok) $fails++; echo ($o
 Http::preventStrayRequests();
 $http = $app->make(Illuminate\Contracts\Http\Kernel::class);
 $route = function ($a) { $r = collect(Route::getRoutes()->getRoutes())->first(fn ($r) => str_ends_with($r->getActionName(), $a)); return $r ? '/' . $r->uri() : null; };
+// THE VERB IS READ OFF THE REGISTERED ROUTE, NEVER ASSUMED. /user/resetSecurity is a PRE-EXISTING route and it
+// is a GET (UserRoute.php:15). An earlier version of this suite posted to it, got 405, and reported that as
+// "rotation path 1 did not rotate the uuid" - a defect in the suite dressed up as a defect in the code, plus two
+// chained failures behind it. Asking the router removes the assumption, and it also means a later change of the
+// verb moves the suite with it instead of turning into a mystery 405.
+$verb = function ($a) { $r = collect(Route::getRoutes()->getRoutes())->first(fn ($r) => str_ends_with($r->getActionName(), $a)); if (!$r) return null; $m = array_values(array_diff($r->methods(), ['HEAD'])); return $m[0] ?? null; };
 
 $profileUri = $route('User\Hysteria2ProfileController@profile');
 $resetUri = $route('User\UserController@resetSecurity');
+$RESET_METHOD = $verb('User\UserController@resetSecurity') ?? 'GET';
 t_check('setup: the hysteria2 profile route is registered', $profileUri !== null, (string) $profileUri);
 t_check('setup: the resetSecurity route is registered (rotation path 1 is reachable over HTTP)', $resetUri !== null, (string) $resetUri);
+// Printed, not compared: the verb is this endpoint's own pre-existing contract, so the suite follows it rather
+// than asserting what it ought to be. What must hold is that a verb was found at all.
+t_check('setup: the resetSecurity verb comes from the router, not from an assumption', $RESET_METHOD !== null, (string) $RESET_METHOD);
 t_check('setup: the credential table exists (migration 2026_10_03_120000 applied)', Schema::hasTable('v2_vpn_hy2_credential'));
 $PROFILE = $profileUri ?? '/api/v1/user/server/hysteria2/profile';
 $RESET = $resetUri ?? '/api/v1/user/resetSecurity';
@@ -83,7 +93,8 @@ try {
     // DELIBERATE DIFFERENCES FROM THE SIBLINGS' SKELETON, each with its reason - anything not listed is a bug:
     //  - REMOTE_ADDR uses 10.251.x (session: 10.253.x, lifecycle: 10.254.x, entitlements: 10.255.x, profile:
     //    10.252.x), so a stray request can be attributed to one suite.
-    //  - $req takes a method, because this suite drives both a GET (profile) and a POST (resetSecurity).
+    //  - $req takes a method, because this suite drives more than one verb; the verb for a route it did not
+    //    create is read off the router ($RESET_METHOD), never written in by hand.
     //  - Hy2CredentialService::flushMemo() is called around anything that changes the stored row: the service
     //    memoises per REQUEST, and a suite is one long-lived process, so without it a later read would answer
     //    from the memo instead of the table and every rotation assertion would pass vacuously.
@@ -203,9 +214,10 @@ try {
         $s3 === 200 && is_string($auth3) && $auth3 !== $auth1 && preg_match(Hy2CredentialService::SECRET_PATTERN, (string) $auth3) === 1);
     t_check('C9-e -- and issued_at moved with it (on SQLite)', (int) $rowOf()->issued_at >= (int) $row1->issued_at);
 
-    // --- ROTATION PATH 1: POST /user/resetSecurity (the user-facing one) ---
+    // --- ROTATION PATH 1: /user/resetSecurity (the user-facing one). The verb is $RESET_METHOD, read off the
+    // registered route - see the note at the top. Do not write a verb in here by hand. ---
     Hy2CredentialService::flushMemo();
-    [$s4] = $req($RESET, 'POST', $auth);
+    [$s4] = $req($RESET, $RESET_METHOD, $auth);
     t_check('C10 rotation path 1 (V1/User/UserController@resetSecurity) rotated the uuid',
         $s4 === 200 && (string) User::find($user->id)->uuid !== $uuid, "http=$s4");
     t_check('C10-b -- and it INVALIDATED the credential, so the old password does not survive a security reset',
@@ -276,13 +288,16 @@ try {
     // credential has to be refused by code we control: the session route, which issues the app's only
     // authorisation evidence, and the profile route, which is what hands the value out.
     $sessionUri = $route('Vpn\VpnSessionController@create');
-    t_check('C15 setup: the session route is registered', $sessionUri !== null, (string) $sessionUri);
-    $post = function (string $uri, array $body, $auth) use ($http) {
+    // Same rule as $RESET_METHOD: the verb comes from the router. This route IS ours, so the assumption would be
+    // right today - but "right today" is how the resetSecurity 405 happened, and the lookup costs one line.
+    $sessionMethod = $verb('Vpn\VpnSessionController@create') ?? 'POST';
+    t_check('C15 setup: the session route is registered', $sessionUri !== null, (string) $sessionUri . ' ' . $sessionMethod);
+    $post = function (string $uri, array $body, $auth) use ($http, $sessionMethod) {
         try { app('auth')->forgetGuards(); } catch (\Throwable $e) {}
         $server = ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json',
             'REMOTE_ADDR' => '10.251.' . random_int(1, 254) . '.' . random_int(1, 254)];
         if ($auth) $server['HTTP_AUTHORIZATION'] = $auth;
-        $r = Request::create('http://localhost' . $uri, 'POST', [], [], [], $server, json_encode($body));
+        $r = Request::create('http://localhost' . $uri, $sessionMethod, [], [], [], $server, json_encode($body));
         $res = $http->handle($r);
         return [$res->getStatusCode(), json_decode($res->getContent(), true) ?: []];
     };
