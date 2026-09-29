@@ -138,6 +138,17 @@ class VpnSessionController extends Controller
         // authoritative point, and a session - which is the app's only authorisation evidence - is not issued
         // against a credential that has lapsed.
         //
+        // ★THIS BRANCH CREATES AN ORDERING PRECONDITION, SO IT IS WRITTEN DOWN HERE, WHERE SOMEONE CHANGING THE
+        // ORDER WILL SEE IT: a hysteria2 session requires that the profile has already been fetched, because the
+        // profile read is what issues the credential.★ The app's own order satisfies it -
+        // home_page.dart:396 hysteria2Profile -> :408 connect -> vpn_connection_manager.dart:117 requestSession -
+        // so no real client is refused by this. What it does refuse is a caller that asks for a session for a
+        // protocol whose credential it has never collected, which is the honest answer: issuing the credential
+        // here instead would hand back a session for a value the caller cannot obtain from this response.
+        // A test that creates a session without a profile read must therefore fetch the profile as a fixture
+        // (both session suites do), and the app contract comment (vpn_session_api.dart:12) says "required before
+        // connecting" without saying in which order - that gap is why this note exists.
+        //
         // The identifier is not one of the app's nine, so VpnErrorCode.fromServerCode maps it to `unknown`,
         // which shows a generic "try again" message. That is the CORRECT instruction here: the fix is another
         // connect attempt, which re-fetches the profile and issues a fresh credential. AUTH_FAILED would have

@@ -162,6 +162,24 @@ try {
     $child = $mkServer(Server::TYPE_HYSTERIA, [$group], ['version' => 2], true, $hy2->id);
     $foreign = $mkServer(Server::TYPE_HYSTERIA, [$group + 500], ['version' => 2]);
 
+    // PRECONDITION, NOT AN ASSERTION (HY2-CRED-1). A hysteria2 session is only issued to a caller who already
+    // holds a live short-lived credential, and the credential is issued by the PROFILE read - so a suite that
+    // creates a session without fetching a profile first is asking for something no real client asks for.
+    // THE FIXTURE WALKS THE CLIENT'S OWN ORDER rather than reaching into the service: home_page:396 fetches the
+    // profile, then :408 connect -> vpn_connection_manager:117 requests the session. Nothing here is asserted -
+    // whether issuance works is test_vpn_hy2_credential_rc.php's job. $profileGet exists only for this step;
+    // every other request in this suite is the POST that $req makes.
+    $profileGet = function (int $serverId) use ($http, $route, $auth) {
+        try { app('auth')->forgetGuards(); } catch (\Throwable $e) {}
+        $uri = ($route('User\Hysteria2ProfileController@profile') ?? '/api/v1/user/server/hysteria2/profile')
+            . '?server_id=' . $serverId;
+        $r = Request::create('http://localhost' . $uri, 'GET', [], [], [], ['HTTP_ACCEPT' => 'application/json',
+            'HTTP_AUTHORIZATION' => $auth,
+            'REMOTE_ADDR' => '10.253.' . random_int(1, 254) . '.' . random_int(1, 254)]);
+        return $http->handle($r)->getStatusCode();
+    };
+    $profileGet((int) $hy2->id);
+
     $base = ['deviceId' => 'synthetic-device-0001', 'protocol' => 'hysteria2', 'routingMode' => 'FULL_TUNNEL'];
 
     // --- the happy path, and the four app-dictated shape rules ---

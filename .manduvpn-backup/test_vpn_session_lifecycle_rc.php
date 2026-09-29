@@ -152,6 +152,16 @@ try {
 
     $hy2 = $mkServer(Server::TYPE_HYSTERIA, [$group], ['version' => 2, 'tls' => ['server_name' => 'life.example.invalid']]);
 
+    // PRECONDITION, NOT AN ASSERTION (HY2-CRED-1). A hysteria2 session is only issued to a caller who already
+    // holds a live short-lived credential, and the credential is issued by the PROFILE read - so a suite that
+    // creates a session without fetching a profile first is asking for something no real client asks for.
+    // THE FIXTURE WALKS THE CLIENT'S OWN ORDER rather than reaching into the service: home_page:396 fetches the
+    // profile, then :408 connect -> vpn_connection_manager:117 requests the session. Nothing here is asserted -
+    // whether issuance works is test_vpn_hy2_credential_rc.php's job - and L1 below is the sentinel that reports
+    // this fixture's health, so a missing credential cannot be mistaken for a broken heartbeat.
+    $profileUri = $route('User\Hysteria2ProfileController@profile') ?? '/api/v1/user/server/hysteria2/profile';
+    $req('GET', $profileUri . '?server_id=' . $hy2->id, null, $auth);
+
     // Every lifecycle assertion needs an ISSUED session, so issuance is the fixture here. L1 reports the
     // helper's own health, so a broken fixture is not mistaken for a broken heartbeat.
     $issue = function (string $deviceId) use ($req, $CREATE, $auth, $hy2) {
