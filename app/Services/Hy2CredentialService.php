@@ -13,9 +13,17 @@ use Illuminate\Support\Facades\Log;
  * invalidates a user's short-lived Hysteria2 credential.
  *
  * WHY A CREDENTIAL AND NOT v2_user.uuid. The uuid never expires, and it is also the subscription identity, so
- * exposure of a Hysteria2 password used to be permanent exposure. This credential expires, and expiry is
- * enforced at the only place that matters - the node's user list: an expired row is not served, so the node
- * does not know the value and the handshake is refused.
+ * exposure of a Hysteria2 password used to be permanent exposure. This credential expires.
+ *
+ * ★ WHERE EXPIRY IS ENFORCED: IN THIS CODEBASE, NOT BY THE NODE'S USER LIST. The panel is the authoritative
+ * enforcement point and the node list is only the PROPAGATION mechanism. That is a design decision, and it is
+ * also the measured truth: on a pull where the node's own info changed, V2bX calls DelNode -> AddNode ->
+ * AddUsers(all) without DelUsers (node/task.go:76-160), and AddUsers only ADDS to usersMap without clearing it
+ * (core/hy2/user.go:29-42), so a user dropped from the list in that same pull keeps a usable value until the
+ * process restarts - and the next comparison uses the replaced list as its baseline, so that user is never seen
+ * as deleted again. Therefore "the panel stopped listing the row" does NOT mean "the credential is dead", and
+ * every path that hands out or authorises a credential checks expires_at itself: the profile endpoint (which
+ * renews, so it can only ever serve a live value) and POST /vpn/sessions (which refuses a lapsed one).
  *
  * ONE VALUE PER USER. The node list carries one credential per user, so that is the unit. There is no overlap
  * window (old and new value live at once) because V2bX accepting two values for one user is unmeasured.
@@ -86,6 +94,17 @@ class Hy2CredentialService
     }
 
     /**
+     * This user's credential ONLY IF it is still live, without issuing or renewing anything. This is the check
+     * an authorisation path uses (POST /vpn/sessions): null means "lapsed or never issued", and the caller must
+     * refuse rather than assume the node will. See the note at the top of this class for why the node's list is
+     * not a safe place to enforce expiry.
+     */
+    public static function liveSecret(int $userId): ?string
+    {
+        return self::liveSecrets([$userId])[$userId] ?? null;
+    }
+
+    /**
      * The live credentials for these user ids, as [user_id => plaintext]. An expired or missing row is simply
      * absent - this method never issues, because it is called on the node pull and a pull must not write a row
      * for every user in the system.
@@ -107,8 +126,12 @@ class Hy2CredentialService
 
     /**
      * The node's user list with the hysteria password in place of v2_user.uuid. A user without a live
-     * credential is DROPPED: the node must not be able to authenticate them with the uuid, which is exactly
-     * what "the credential expires" means. They come back on their next profile or subscription fetch.
+     * credential is DROPPED, so the node is never handed the uuid as a fallback - a fallback would make the
+     * expiry meaningless. They come back on their next profile or subscription fetch.
+     *
+     * DROPPING IS PROPAGATION, NOT ENFORCEMENT. The node may keep a dropped value in memory (see the class
+     * note), so nothing here may be read as "the credential has been revoked". Enforcement lives in the
+     * authorisation paths that call liveSecret().
      *
      * ponytail: one Crypt::decryptString per listed user per pull. At the sizes this panel runs, that is
      * cheaper than the pull's own JSON encoding; if it ever shows up in a profile, cache the decrypted list

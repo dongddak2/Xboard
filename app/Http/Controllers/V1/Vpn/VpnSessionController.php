@@ -8,6 +8,7 @@ use App\Models\Server;
 use App\Models\User;
 use App\Models\VpnSession;
 use App\Services\BasicServerAssignmentService;
+use App\Services\Hy2CredentialService;
 use App\Services\ServerService;
 use App\Services\UserService;
 use Illuminate\Http\Request;
@@ -128,6 +129,21 @@ class VpnSessionController extends Controller
             // Indistinguishable from "no such server": this must not enumerate nodes. 4xx, never 200 - a 200
             // refusal would be read as ACTIVE by the app and it would connect. See the class note.
             return $this->fail([403, '해당 서버에 접속할 권한이 없습니다'], null, 'SERVER_NOT_ALLOWED');
+        }
+
+        // ManduVPN HY2-CRED-1: ★WE ENFORCE THE CREDENTIAL'S EXPIRY, THE NODE DOES NOT.★ Dropping a lapsed user
+        // from /UniProxy/user propagates the change but does not revoke anything: on a pull where the node's own
+        // info changed, V2bX adds users without clearing its map (node/task.go:76-160, core/hy2/user.go:29-42),
+        // so a dropped value can stay usable until the process restarts. This panel is therefore the
+        // authoritative point, and a session - which is the app's only authorisation evidence - is not issued
+        // against a credential that has lapsed.
+        //
+        // The identifier is not one of the app's nine, so VpnErrorCode.fromServerCode maps it to `unknown`,
+        // which shows a generic "try again" message. That is the CORRECT instruction here: the fix is another
+        // connect attempt, which re-fetches the profile and issues a fresh credential. AUTH_FAILED would have
+        // told the user to log in again, which would not help.
+        if ($protocol === 'hysteria2' && Hy2CredentialService::liveSecret((int) $user->id) === null) {
+            return $this->fail([403, 'VPN 접속 정보가 만료되었습니다. 다시 연결해 주세요'], null, 'HY2_CREDENTIAL_EXPIRED');
         }
 
         $now = time();

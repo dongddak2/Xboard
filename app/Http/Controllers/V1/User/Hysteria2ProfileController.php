@@ -103,6 +103,15 @@ class Hysteria2ProfileController extends Controller
         // the mport parameter). Re-deriving it locally would be a second, divergent implementation.
         $server->handlePortAllocation();
 
+        // ManduVPN HY2-CRED-1: ★the lifetime is enforced here, not on the node.★ This read issues or renews, so
+        // what goes out always has a full TTL ahead of it and a lapsed value is never served. An empty result
+        // means issuing itself failed; that is refused with 500 rather than handed over as a profile that looks
+        // usable (the app already reads a 500 from this endpoint as an issuing failure).
+        $credential = (string) Hy2CredentialService::password($user);
+        if ($credential === '') {
+            return $this->fail([500, 'VPN 접속 정보를 발급할 수 없습니다'], null, 'HY2_CREDENTIAL_UNAVAILABLE');
+        }
+
         $settings = $server->protocol_settings;
         $obfsOpen = (bool) data_get($settings, 'obfs.open');
 
@@ -133,10 +142,10 @@ class Hysteria2ProfileController extends Controller
                     'down' => data_get($settings, 'bandwidth.down'),
                 ],
                 'credential' => [
-                    // ManduVPN HY2-CRED-1: the short-lived credential, issued or renewed by this read. See
-                    // CREDENTIAL LIFETIME in the class note. The field name is unchanged on purpose - the app
-                    // reads `auth` and needs no rebuild for this.
-                    'auth' => (string) Hy2CredentialService::password($user),
+                    // ManduVPN HY2-CRED-1: the short-lived credential, issued or renewed above. See CREDENTIAL
+                    // LIFETIME in the class note. The field name is unchanged on purpose - the app reads `auth`
+                    // and needs no rebuild for this.
+                    'auth' => $credential,
                 ],
             ],
         ])->header('Cache-Control', 'no-store')->header('Pragma', 'no-cache');

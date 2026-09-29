@@ -11,11 +11,13 @@
 // C12) even though they share one invalidation point - a shared implementation is exactly the thing one caller
 // can silently bypass.
 //
-// ★ WHERE EXPIRY IS ENFORCED, AND THEREFORE WHAT "REFUSED" MEANS HERE. Nothing in the panel refuses a
-// handshake; the node does. The panel's only lever is the user list at /UniProxy/user, so an expired
-// credential is enforced by the user being ABSENT from that list (C9-b). The suite asserts the list, not a
-// tunnel: no tunnel is raised anywhere in this file, and "the node then refuses it" is the node's documented
-// behaviour, not something measured here.
+// ★ WHERE EXPIRY IS ENFORCED, AND THEREFORE WHAT "REFUSED" MEANS HERE. ★THIS CODEBASE ENFORCES IT, NOT THE
+// NODE.★ Dropping a lapsed user from /UniProxy/user is PROPAGATION, and propagation is not revocation: on a
+// pull where the node's own info changed, V2bX adds users without clearing its map (node/task.go:76-160,
+// core/hy2/user.go:29-42), so a dropped value can stay usable until the process restarts. So the assertions
+// that matter are the ones on OUR paths - C15 (no session is issued against a lapsed credential) and C16 (the
+// profile never hands a lapsed one out) - and the node-list assertions (C7, C9, C9-b) are about what we
+// propagate, not about what the node will refuse. No tunnel is raised anywhere in this file.
 //
 // ★ WHICH RESULTS ARE SQLITE-ONLY. The test panel DB is SQLite (RC_CONTRACTS.md §1.2-c). Every assertion that
 // goes through the PROFILE endpoint is marked, because its eligibility filter uses whereJsonContains on
@@ -71,6 +73,7 @@ $userBefore = $sig('v2_user', ['id', 'uuid', 'token', 'group_id']);
 $ikev2Before = $sig('v2_vpn_credential', ['user_id', 'username', 'secret_enc', 'rotated_at']);
 $hy2CountBefore = DB::table('v2_vpn_hy2_credential')->count();
 $userCountBefore = DB::table('v2_user')->count();
+$sessionCountBefore = DB::table('v2_vpn_session')->count();
 
 // Set only when the assertion block runs to its end - see the catch below.
 $completed = false;
@@ -182,12 +185,13 @@ try {
     t_check('C8-b a caller that passes no node type at all is byte-identical to before (Tidalab controllers, the IKEv2 node API, the device-limit count)',
         $listedValue($hy2Node, null) === $uuid);
 
-    // --- THE PAIR §23.57 ASKS FOR: before expiry it is served, after expiry it is not ---
-    t_check('C9 BEFORE the expiry the credential is served to the node, so a connection can be authenticated',
+    // --- THE PAIR §23.57 ASKS FOR: before expiry it is served, after expiry it is not.
+    // Read these as PROPAGATION, not as revocation - see the header. C15 and C16 are the enforcement pair.
+    t_check('C9 BEFORE the expiry the credential is propagated to the node, so a connection can be authenticated',
         $listedValue($hy2Node, Server::TYPE_HYSTERIA) !== null);
     DB::table('v2_vpn_hy2_credential')->where('user_id', $user->id)->update(['expires_at' => time() - 1]);
-    t_check('C9-b AFTER the expiry the user is ABSENT from the node\'s list, which is how an expired credential is refused'
-        . ' -- and the uuid does NOT come back in its place (a fallback would make expiry meaningless)',
+    t_check('C9-b AFTER the expiry the user is ABSENT from the node\'s list, so the lapsed value stops being'
+        . ' propagated -- and the uuid does NOT come back in its place (a fallback would make expiry meaningless)',
         $listedValue($hy2Node, Server::TYPE_HYSTERIA) === null);
     t_check('C9-c the row is still there (expiry is a comparison, not a cleanup job the suite has to wait for)',
         $rowOf() !== null);
@@ -267,6 +271,57 @@ try {
         $s5 === 403 && $rowOf() === null, "http=$s5 error=" . json_encode($j5['error'] ?? null));
     DB::table('v2_user')->where('id', $user->id)->update(['banned' => 0]);
 
+    // --- ★THE ENFORCEMENT PAIR. This is what makes the panel, not the node, the authority on expiry.★
+    // The node cannot be trusted to have forgotten a value it was once given (see the header), so a lapsed
+    // credential has to be refused by code we control: the session route, which issues the app's only
+    // authorisation evidence, and the profile route, which is what hands the value out.
+    $sessionUri = $route('Vpn\VpnSessionController@create');
+    t_check('C15 setup: the session route is registered', $sessionUri !== null, (string) $sessionUri);
+    $post = function (string $uri, array $body, $auth) use ($http) {
+        try { app('auth')->forgetGuards(); } catch (\Throwable $e) {}
+        $server = ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json',
+            'REMOTE_ADDR' => '10.251.' . random_int(1, 254) . '.' . random_int(1, 254)];
+        if ($auth) $server['HTTP_AUTHORIZATION'] = $auth;
+        $r = Request::create('http://localhost' . $uri, 'POST', [], [], [], $server, json_encode($body));
+        $res = $http->handle($r);
+        return [$res->getStatusCode(), json_decode($res->getContent(), true) ?: []];
+    };
+    $sessionBody = ['deviceId' => 'rb-hy2c-' . Str::random(8), 'serverId' => (int) $hy2Node->id, 'protocol' => 'hysteria2'];
+
+    Hy2CredentialService::flushMemo();
+    [$s6, $j6] = $req($PROFILE . '?server_id=' . $hy2Node->id, 'GET', $auth); // issues a live credential
+    $auth6 = $j6['data']['credential']['auth'] ?? null;
+    t_check('C15-a setup: a live credential exists (on SQLite)', $s6 === 200 && is_string($auth6) && $auth6 !== '');
+    [$s7, $j7] = $post((string) ($sessionUri ?? '/api/v1/vpn/sessions'), $sessionBody, $auth);
+    t_check('C15-b BEFORE the expiry a hysteria2 session IS issued (on SQLite)',
+        $s7 === 200 && is_string($j7['data']['sessionId'] ?? null), "http=$s7 error=" . json_encode($j7['error'] ?? null));
+    DB::table('v2_vpn_hy2_credential')->where('user_id', $user->id)->update(['expires_at' => time() - 1]);
+    Hy2CredentialService::flushMemo();
+    [$s8, $j8] = $post((string) ($sessionUri ?? '/api/v1/vpn/sessions'), $sessionBody, $auth);
+    t_check('C15-c ★AFTER the expiry NO session is issued -- the panel refuses it itself rather than relying on'
+        . ' the node to have forgotten the value★ (on SQLite)',
+        $s8 === 403 && ($j8['error'] ?? null) === 'HY2_CREDENTIAL_EXPIRED', "http=$s8 error=" . json_encode($j8['error'] ?? null));
+    t_check('C15-d -- and that refusal carries no session data, so the app cannot read it as an authorisation',
+        $s8 !== 200 && ($j8['data']['sessionId'] ?? null) === null, json_encode($j8['data'] ?? 'MISSING'));
+    t_check('C15-e the refusal is protocol-scoped: an ikev2 session is NOT blocked by a lapsed hysteria2 credential (on SQLite)',
+        (function () use ($post, $sessionUri, $ikev2Node, $auth) {
+            [$st, $j] = $post((string) ($sessionUri ?? '/api/v1/vpn/sessions'),
+                ['deviceId' => 'rb-hy2c-' . Str::random(8), 'serverId' => (int) $ikev2Node->id, 'protocol' => 'ikev2'], $auth);
+            return $st === 200 && is_string($j['data']['sessionId'] ?? null);
+        })());
+
+    // C16 the profile route never hands out a lapsed value: the row is expired right now, and the read replaces
+    // it instead of serving it. Asserted through liveSecret(), which is the same check the session route uses.
+    t_check('C16 setup: the stored credential is lapsed before this read', Hy2CredentialService::liveSecret((int) $user->id) === null);
+    Hy2CredentialService::flushMemo();
+    [$s9, $j9] = $req($PROFILE . '?server_id=' . $hy2Node->id, 'GET', $auth);
+    $auth9 = $j9['data']['credential']['auth'] ?? null;
+    t_check('C16-b ★the profile does NOT serve the lapsed credential★ -- it issues a live one, and the value it'
+        . ' returns is the live one (on SQLite)',
+        $s9 === 200 && is_string($auth9) && $auth9 !== '' && $auth9 === Hy2CredentialService::liveSecret((int) $user->id));
+    t_check('C16-c -- and the profile response never carries an empty auth (an empty value would reach the app as'
+        . ' a profile that looks usable) (on SQLite)', is_string($auth9) && $auth9 !== '');
+
     $completed = true;
 } catch (\Throwable $e) {
     // AN ABORT IS A FAILURE, NOT A QUIET STOP. Without this catch an exception leaves through Laravel's global
@@ -286,9 +341,11 @@ t_check('Z2 v2_user unchanged -- including uuid, which this suite rotated three 
 t_check('Z3 ★v2_vpn_credential (IKEv2) is byte-identical★ -- the new table is a NEW table, and the IKEv2 one is'
     . ' not touched, read or written by any of this (§23.57 condition 5)',
     $sig('v2_vpn_credential', ['user_id', 'username', 'secret_enc', 'rotated_at']) === $ikev2Before);
-t_check('Z4 row counts unchanged (only fixtures were created)',
-    DB::table('v2_vpn_hy2_credential')->count() === $hy2CountBefore && DB::table('v2_user')->count() === $userCountBefore,
-    'hy2cred=' . DB::table('v2_vpn_hy2_credential')->count() . ' users=' . DB::table('v2_user')->count());
+t_check('Z4 row counts unchanged -- including v2_vpn_session, which C15 wrote to (only fixtures were created)',
+    DB::table('v2_vpn_hy2_credential')->count() === $hy2CountBefore && DB::table('v2_user')->count() === $userCountBefore
+    && DB::table('v2_vpn_session')->count() === $sessionCountBefore,
+    'hy2cred=' . DB::table('v2_vpn_hy2_credential')->count() . ' users=' . DB::table('v2_user')->count()
+    . ' sessions=' . DB::table('v2_vpn_session')->count());
 t_check('Z5 the suite reached the end of its assertion block (a partial run is not a pass)', $completed);
 
 echo ($fails === 0 ? "ALL PASS\n" : "FAILURES: $fails\n");
