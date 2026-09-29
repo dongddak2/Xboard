@@ -70,7 +70,12 @@ for loc in ("ko-KR", "ja-JP"):
         check(set(PH.findall(src)) == set(PH.findall(val)),
               "%s: placeholder mismatch on %r" % (loc, key))
 
-# 4. the reported bug: a wrong password must not answer in Chinese
+# 4. LOGIN-FAIL-I18N (named regression case, required by god via LEAD 2026-09-30):
+#    the two strings a failing login can return. AuthController.php:243 (no such
+#    account) and :258 (password mismatch) return the SAME string, and :235 is the
+#    lockout. Reproduce live with a NONEXISTENT email only: :243 returns 400 without
+#    incrementing the password-error counter, so it cannot lock anybody out. A real
+#    account tried 5 times locks for 60 minutes.
 WRONG_PW = "Incorrect email or password"
 LOCKED = "There are too many password errors, please try again after :minute minutes."
 check(HANGUL.search(translate(WRONG_PW, "ko-KR")), "ko-KR wrong-password is not Korean")
@@ -90,11 +95,11 @@ check(translate("a key nobody defined", "ko-KR") == "a key nobody defined",
 
 print("keys: " + ", ".join("%s=%d" % (k, len(v)) for k, v in sorted(D.items())))
 print("")
-print("wrong password, by locale:")
+print("LOGIN-FAIL-I18N / wrong password, by locale:")
 for loc in ("ko-KR", "ja-JP", "en-US", "zh-CN", "(no header -> %s)" % DEFAULT):
     print("  %-24s %s" % (loc, translate(WRONG_PW, DEFAULT if loc.startswith("(") else loc)))
 print("")
-print("lockout (:minute = 60), by locale:")
+print("LOGIN-FAIL-I18N / lockout (:minute = 60), by locale:")
 for loc in ("ko-KR", "ja-JP", "en-US", "zh-CN"):
     print("  %-24s %s" % (loc, translate(LOCKED, loc, {"minute": 60})))
 
