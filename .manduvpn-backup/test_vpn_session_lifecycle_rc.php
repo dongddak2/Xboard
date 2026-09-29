@@ -22,12 +22,19 @@
 // WHY THE ROW IS NOT DELETED ON RELEASE. Release sets status ENDED. A deleted row cannot answer "did this
 // device ever hold a session", which is the only thing this table is for.
 //
-// ★ WHICH RESULTS ARE SQLITE-ONLY. The test panel DB is SQLite (RC_CONTRACTS.md §1.2-c) and whereJsonContains
-// compiles per engine - json_each on SQLite, JSON_CONTAINS on MySQL. Same rule as the sibling: a result is
-// marked when it is REACHED THROUGH that match. Here every session must be ISSUED first, so anything operating
-// on a real session rides on that grant and is marked. NOT MARKED: refusals that need no session at all
-// (H9 unknown id, D7, A1, A2) and T4, whose subject row is inserted directly rather than issued. The TTL
-// arithmetic itself is COALESCE - plain SQL on both engines, with no JSON function anywhere near it.
+// ★ WHICH RESULTS ARE SQLITE-ONLY, AND THE RULE THAT DECIDES IT. The test panel DB is SQLite
+// (RC_CONTRACTS.md §1.2-c) and whereJsonContains compiles per engine - json_each on SQLite, JSON_CONTAINS on
+// MySQL. Every session here is ISSUED through VpnSessionController:337, which uses that predicate.
+//
+// ★THE MARK IS A RE-RUN LIST: it names the results that have to be measured again once the production engine is
+// fixed. So the test is NOT "is this reached through the match" - that was a mechanical proxy - but "would this
+// result change if the predicate behaved differently". Over-marking costs one extra re-run; a missing mark is a
+// silent defect on MySQL, so when in doubt, mark it.★
+//
+// NOT MARKED: refusals that need no session at all (H9 unknown id, D7, A1, A2), the setup block and the Z
+// block. T4 IS marked, although the row it inspects is inserted directly: the sweep it asserts about is
+// triggered by a beat on an ISSUED session, so its answer rides on the predicate after all. The TTL arithmetic
+// itself is COALESCE - plain SQL on both engines, with no JSON function anywhere near it.
 //
 // Usage (test server only, never production):
 //   docker exec -w /www xboard-test-web-1 php /www/.manduvpn-backup/test_vpn_session_lifecycle_rc.php
@@ -244,14 +251,14 @@ try {
         ]);
         [$stSweep] = $req('POST', $BEAT((string) $sidFresh), [], $auth);
         $otherStatus = DB::table('v2_vpn_session')->where('user_id', (int) $other->id)->value('status');
-        t_check('T4 my sweep does not expire another account\'s stale row (it is scoped to user_id)',
+        t_check('T4 my sweep does not expire another account\'s stale row (it is scoped to user_id) (on SQLite)',
             $stSweep === 200 && $otherStatus === 'ACTIVE', "http=$stSweep other=" . json_encode($otherStatus));
     } else {
         t_check('T1 beating one session also expires this account\'s other stale session (the sweep is per user) (on SQLite)', false, 'table missing or session not issued');
         t_check('T2 the expired session itself now answers REVOKED (on SQLite)', false, 'table missing or session not issued');
         t_check('T2 the expired session itself now answers REVOKED (on SQLite) -- and it is NOT a 4xx (the app swallows a 4xx heartbeat and keeps the tunnel)', false, 'table missing or session not issued');
         t_check('T3 a session inside the TTL is NOT swept (the sweep expires the quiet, not the connected) (on SQLite)', false, 'table missing or session not issued');
-        t_check('T4 my sweep does not expire another account\'s stale row (it is scoped to user_id)', false, 'table missing or session not issued');
+        t_check('T4 my sweep does not expire another account\'s stale row (it is scoped to user_id) (on SQLite)', false, 'table missing or session not issued');
     }
 
     // --- RELEASE ---

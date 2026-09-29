@@ -19,11 +19,23 @@
 // profile never hands a lapsed one out) - and the node-list assertions (C7, C9, C9-b) are about what we
 // propagate, not about what the node will refuse. No tunnel is raised anywhere in this file.
 //
-// ★ WHICH RESULTS ARE SQLITE-ONLY. The test panel DB is SQLite (RC_CONTRACTS.md §1.2-c). Every assertion that
-// goes through the PROFILE endpoint is marked, because its eligibility filter uses whereJsonContains on
-// v2_server.group_ids, which compiles per engine (json_each on SQLite, JSON_CONTAINS on MySQL). NOT MARKED:
-// everything that goes through ServerService::getAvailableUsers (group_id is an integer column, whereIn - no
-// JSON predicate), the table shape, the rotation assertions and the $hidden assertion.
+// ★ WHICH RESULTS ARE SQLITE-ONLY, AND THE RULE THAT DECIDES IT. The test panel DB is SQLite
+// (RC_CONTRACTS.md §1.2-c), and three lines in the paths these suites walk use whereJsonContains on
+// v2_server.group_ids, which compiles per engine (json_each on SQLite, JSON_CONTAINS on MySQL):
+// VpnEntitlementController:115, VpnSessionController:337 and Hysteria2ProfileController:165.
+//
+// ★THE MARK IS A RE-RUN LIST: it names the results that have to be measured again once the production engine is
+// fixed. So the test is NOT "does this assertion go through the endpoint" - that was a mechanical proxy, and it
+// is wrong for assertions that read state the endpoint created. The test is "would this result change if the
+// engine-split predicate behaved differently". Over-marking costs one extra re-run; a missing mark is a silent
+// defect on MySQL, so when in doubt, mark it.★
+//
+// NOT MARKED here, each because the answer cannot move with the engine: the table shape (C0); assertions that
+// something is ABSENT (C9-b, C10-b/c, C11-b, C12-b - they hold even if nothing was ever issued); comparisons
+// against v2_user.uuid rather than the credential (C8, C8-b); the static source reads (C13*); C16's setup; and
+// the Z block. ServerService::getAvailableUsers is not a reason to mark on its own - it filters group_id as an
+// integer column with whereIn, no JSON predicate - but C7/C7-b/C9 are marked anyway, because what they compare
+// against came from the profile read.
 //
 // ★ THE TTL VALUE IS NOT UNDER TEST. It is deliberately undecided (LEAD §23.57 condition 6, pending INFRA's
 // node measurement). This suite never writes a setting and never asserts a number of seconds: it forces expiry
@@ -168,9 +180,9 @@ try {
     t_check('C5 the read stored a row with an expiry in the future and an issued_at (on SQLite)',
         $row1 !== null && (int) $row1->expires_at > time() && (int) $row1->issued_at > 0,
         $row1 ? 'expires_in=' . ((int) $row1->expires_at - time()) : 'no row');
-    t_check('C5-b the stored column is the ENCRYPTED one and it is not the plaintext that was just handed out',
+    t_check('C5-b the stored column is the ENCRYPTED one and it is not the plaintext that was just handed out (on SQLite)',
         $row1 !== null && is_string($row1->secret_enc) && $row1->secret_enc !== $auth1);
-    t_check('C5-c the model hides secret_enc from every serializer ($hidden, the v2_vpn_credential precedent)',
+    t_check('C5-c the model hides secret_enc from every serializer ($hidden, the v2_vpn_credential precedent) (on SQLite)',
         $row1 !== null && !array_key_exists('secret_enc', $row1->toArray()), json_encode(array_keys($row1 ? $row1->toArray() : [])));
 
     // --- a second read RENEWS, it does not rotate: this is what removes the fetch -> handshake race ---
@@ -187,9 +199,9 @@ try {
         $row2 !== null && (int) $row2->issued_at === (int) $row1->issued_at);
 
     // --- the node's user list: the hysteria node is handed the credential, everything else is untouched ---
-    t_check('C7 a hysteria node\'s user list carries the credential in place of uuid',
+    t_check('C7 a hysteria node\'s user list carries the credential in place of uuid (on SQLite)',
         $listedValue($hy2Node, Server::TYPE_HYSTERIA) === $auth1, json_encode($listedValue($hy2Node, Server::TYPE_HYSTERIA)) . ' vs credential');
-    t_check('C7-b -- and the same call made with the node type alias `hysteria2` behaves identically (Server::normalizeType)',
+    t_check('C7-b -- and the same call made with the node type alias `hysteria2` behaves identically (Server::normalizeType) (on SQLite)',
         $listedValue($hy2Node, 'hysteria2') === $auth1);
     t_check('C8 a NON-hysteria node still gets v2_user.uuid (this change is scoped to one protocol)',
         $listedValue($ikev2Node, Server::TYPE_IKEV2) === $uuid);
@@ -198,13 +210,13 @@ try {
 
     // --- THE PAIR §23.57 ASKS FOR: before expiry it is served, after expiry it is not.
     // Read these as PROPAGATION, not as revocation - see the header. C15 and C16 are the enforcement pair.
-    t_check('C9 BEFORE the expiry the credential is propagated to the node, so a connection can be authenticated',
+    t_check('C9 BEFORE the expiry the credential is propagated to the node, so a connection can be authenticated (on SQLite)',
         $listedValue($hy2Node, Server::TYPE_HYSTERIA) !== null);
     DB::table('v2_vpn_hy2_credential')->where('user_id', $user->id)->update(['expires_at' => time() - 1]);
     t_check('C9-b AFTER the expiry the user is ABSENT from the node\'s list, so the lapsed value stops being'
         . ' propagated -- and the uuid does NOT come back in its place (a fallback would make expiry meaningless)',
         $listedValue($hy2Node, Server::TYPE_HYSTERIA) === null);
-    t_check('C9-c the row is still there (expiry is a comparison, not a cleanup job the suite has to wait for)',
+    t_check('C9-c the row is still there (expiry is a comparison, not a cleanup job the suite has to wait for) (on SQLite)',
         $rowOf() !== null);
     // The client's way back in is a fresh read, which issues a NEW secret because the old one has lapsed.
     Hy2CredentialService::flushMemo();
@@ -230,7 +242,7 @@ try {
     // not hold. What is asserted is the exact two-line shape the controller uses; C13-b locks that shape.
     Hy2CredentialService::flushMemo();
     $req($PROFILE . '?server_id=' . $hy2Node->id, 'GET', $auth);
-    t_check('C11 setup: a credential exists again before rotation path 2', $rowOf() !== null);
+    t_check('C11 setup: a credential exists again before rotation path 2 (on SQLite)', $rowOf() !== null);
     $u2 = User::find($user->id);
     $u2->token = Helper::guid();
     $u2->uuid = Helper::guid(true);
@@ -241,7 +253,7 @@ try {
     // --- ROTATION PATH 3: the console command's loop body (reset:user, which walks EVERY user) ---
     Hy2CredentialService::flushMemo();
     $req($PROFILE . '?server_id=' . $hy2Node->id, 'GET', $auth);
-    t_check('C12 setup: a credential exists again before rotation path 3', $rowOf() !== null);
+    t_check('C12 setup: a credential exists again before rotation path 3 (on SQLite)', $rowOf() !== null);
     foreach (User::where('id', $user->id)->get() as $u3) { // the ResetUser loop body, over one user
         $u3->token = Helper::guid();
         $u3->uuid = Helper::guid(true);

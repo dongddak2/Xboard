@@ -22,10 +22,13 @@
 // JSON_CONTAINS on MySQL. Marked labels are "passed ON SQLITE" and say nothing about MySQL; do not shorten
 // that to "passed".
 //
-// THE RULE: a grant traverses the engine match to succeed, so it is marked. A refusal is fail-closed and
-// therefore robust to engine differences - but it is marked when the refusal is REACHED THROUGH that match,
-// i.e. the node had to be found before another predicate rejected it. A refusal decided before the query
-// (subscription, protocol, routingMode, auth, validation) or by the absence of any row is NOT marked.
+// ★THE RULE, AND WHY IT IS THIS RULE: the mark is a RE-RUN LIST - it names the results that have to be measured
+// again once the production engine is fixed. So the question is not "is this reached through the match", which
+// is only a mechanical proxy, but "would this result change if the engine-split predicate behaved differently".
+// Over-marking costs one extra re-run; a missing mark is a silent defect on MySQL, so when in doubt, mark it.★
+// Applied here: a grant traverses the match to succeed, so it is marked, and so is a refusal that had to FIND
+// the node before another predicate rejected it. A refusal decided before the query (subscription, protocol,
+// routingMode, auth, validation) or by the absence of any row is NOT marked - no engine can change its answer.
 //
 // MARKED: S1-S17 and S21.  S1/S12 are grants; S2-S11 ride on S1's 200 and share its fate; S13-S17 and S21
 // are refusals reached through the match. NOT MARKED: S18 (no such row at all), S19/S20/S25 (refused before

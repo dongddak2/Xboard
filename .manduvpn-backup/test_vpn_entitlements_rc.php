@@ -14,9 +14,17 @@
 // 2026-09-27 (it used to substitute `fallbackIkev2Only`, showing an "IKEv2, 1 device" nobody had granted), and
 // this suite is what stops the server growing its own version of that lie.
 //
-// ★ WHICH RESULTS ARE SQLITE-ONLY. The test panel DB is SQLite (RC_CONTRACTS.md §1.2-c) and whereJsonContains
-// compiles per engine - json_each on SQLite, JSON_CONTAINS on MySQL. allowedProtocols is computed THROUGH that
-// match, so every assertion about its contents is marked. NOT MARKED: deviceLimit, subscriptionExpiresAt,
+// ★ WHICH RESULTS ARE SQLITE-ONLY, AND THE RULE THAT DECIDES IT. The test panel DB is SQLite
+// (RC_CONTRACTS.md §1.2-c) and whereJsonContains compiles per engine - json_each on SQLite, JSON_CONTAINS on
+// MySQL (here: VpnEntitlementController:115).
+//
+// ★THE MARK IS A RE-RUN LIST: it names the results that have to be measured again once the production engine is
+// fixed. So the test is not "does this go through the match", which is only a mechanical proxy, but "would this
+// result change if the predicate behaved differently". Over-marking costs one extra re-run; a missing mark is a
+// silent defect on MySQL, so when in doubt, mark it.★
+//
+// allowedProtocols is computed THROUGH that match, so every assertion about its contents is marked.
+// NOT MARKED: deviceLimit, subscriptionExpiresAt,
 // allowedServerGroups, the no-store header, and the refusals decided before any node query (auth, lapsed
 // subscription, banned) - none of those touch a JSON predicate.
 //
