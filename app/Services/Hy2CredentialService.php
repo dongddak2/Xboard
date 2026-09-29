@@ -55,9 +55,7 @@ class Hy2CredentialService
 
     /**
      * ★THE ADOPTED LIFETIME: 24 HOURS★ (LEAD, RC_CONTRACTS §23.62). The authority is the setting below; this is
-     * the value used when no setting has been written. THE NAME IS KEPT UNCHANGED ON INSTRUCTION so that nothing
-     * else has to move - read it as "the code-side default", not as "not yet decided", because 86400 IS the
-     * decided value.
+     * the value used when no setting has been written.
      *
      * THE FOUR GROUNDS, at the same place as the number:
      *  1. Three orders of magnitude above the propagation floor (the node's pull_interval, default 60s), so no
@@ -78,7 +76,7 @@ class Hy2CredentialService
      * The RC suite forces expiry by writing expires_at into the past inside its rolled-back transaction, so no
      * test result depends on this number and no test writes a setting.
      */
-    public const TTL_SECONDS_PROVISIONAL_NOT_ADOPTED = 86400;
+    public const TTL_SECONDS_DEFAULT = 86400;
 
     public const TTL_SETTING_KEY = 'manduvpn_hy2_credential_ttl_seconds';
 
@@ -88,8 +86,8 @@ class Hy2CredentialService
     /** The lifetime in seconds: the setting if one is written, otherwise the adopted 24 hours. Grounds: see the constant. */
     public static function ttlSeconds(): int
     {
-        $ttl = (int) admin_setting(self::TTL_SETTING_KEY, self::TTL_SECONDS_PROVISIONAL_NOT_ADOPTED);
-        return $ttl > 0 ? $ttl : self::TTL_SECONDS_PROVISIONAL_NOT_ADOPTED;
+        $ttl = (int) admin_setting(self::TTL_SETTING_KEY, self::TTL_SECONDS_DEFAULT);
+        return $ttl > 0 ? $ttl : self::TTL_SECONDS_DEFAULT;
     }
 
     /**
