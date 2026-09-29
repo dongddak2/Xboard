@@ -80,7 +80,15 @@ return [
     |
     */
 
-    'locale' => 'zh-CN',
+    // ManduVPN I18N-P0: the client does not send a `content-language` header yet
+    // (web/src/lib/api/client.ts), so this value — not the header — decides the
+    // language of every API message today. It was 'zh-CN', which is why a Korean
+    // user saw Chinese on a wrong password. Changing only `fallback_locale` below
+    // would NOT have fixed that: zh-CN.json is complete, so the fallback never
+    // engaged. Nothing in the app branches on the locale (the only reader outside
+    // the middleware is `<html lang>` in client/subscribe.blade.php), so this is
+    // a message-language change, not a behaviour change.
+    'locale' => 'ko-KR',
 
     /*
     |--------------------------------------------------------------------------
@@ -93,7 +101,10 @@ return [
     |
     */
 
-    'fallback_locale' => 'zh-CN',
+    // ManduVPN I18N-P0: a missing key must degrade to English, never to Chinese.
+    // `__()` keys are the English source strings, so an untranslated key renders
+    // as readable English even if it is absent here too.
+    'fallback_locale' => 'en-US',
 
     /*
     |--------------------------------------------------------------------------
