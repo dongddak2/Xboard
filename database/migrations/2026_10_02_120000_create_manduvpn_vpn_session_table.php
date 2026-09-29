@@ -31,10 +31,12 @@ return new class extends Migration
                 $table->integer('server_id');
                 $table->string('protocol', 16);
                 $table->string('routing_mode', 16);
-                // ACTIVE | REVOKED | DISCONNECTED. The app only reads ACTIVE and REVOKED.
+                // ACTIVE | ENDED | EXPIRED | REVOKED - the stored vocabulary, which is wider than the wire one
+                // (the app knows only ACTIVE and REVOKED). App\Models\VpnSession owns the list; that is the
+                // place to read it, because a column comment cannot be kept in step with code.
                 $table->string('status', 16);
                 $table->integer('connected_at');
-                // Stays null until a heartbeat route exists. See the ceiling note in the controller.
+                // Null until the first heartbeat. Written by the heartbeat route, added 2026-09-29.
                 $table->integer('last_heartbeat_at')->nullable();
                 $table->integer('created_at');
                 $table->integer('updated_at');

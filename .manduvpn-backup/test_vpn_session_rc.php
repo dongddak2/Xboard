@@ -193,11 +193,11 @@ try {
             $row !== null && (int) $row->user_id === (int) $user->id && (int) $row->server_id === (int) $hy2->id
             && $row->status === 'ACTIVE' && $row->protocol === 'hysteria2',
             $row === null ? 'no row' : json_encode(['u' => $row->user_id, 's' => $row->server_id, 'st' => $row->status]));
-        t_check('S11 last_heartbeat_at starts null (no heartbeat route yet - documented ceiling) (on SQLite)',
+        t_check('S11 last_heartbeat_at starts null - create never writes it, only heartbeat does (on SQLite)',
             $row !== null && $row->last_heartbeat_at === null, $row === null ? 'no row' : var_export($row->last_heartbeat_at, true));
     } else {
         t_check('S10 a session row was written for this user and node (on SQLite)', false, 'table missing');
-        t_check('S11 last_heartbeat_at starts null (no heartbeat route yet - documented ceiling) (on SQLite)', false, 'table missing');
+        t_check('S11 last_heartbeat_at starts null - create never writes it, only heartbeat does (on SQLite)', false, 'table missing');
     }
 
     // --- an ikev2 node is issuable too, and the protocol selects the node type ---
