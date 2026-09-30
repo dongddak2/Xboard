@@ -309,6 +309,22 @@ class AuthController extends Controller
         ], 400);
     }
 
+    // UNROUTED as of 2026-09-30, deliberately. Both registrations that reached this method
+    // (Routes/V1/PassportRoute.php:18 and Routes/V2/PassportRoute.php:18, /api/v1 and /api/v2) were
+    // removed: it mints a 60-second panel login code from a bearer token with NO auth middleware,
+    // so a leaked token could be exchanged for a panel session. Do not re-register it.
+    //
+    // The authenticated equivalent is User\UserController@getQuickLoginUrl (Routes/V1/UserRoute.php:24,
+    // 'user' middleware). It differs from this method in three ways, all of which favour it:
+    //   1. it takes the identity from $request->user(), so the credential cannot arrive in the request
+    //      BODY - this method's `auth_data` input puts a bearer token into request()->all();
+    //   2. the sanctum guard checks expires_at, while PersonalAccessToken::findToken() below only
+    //      matches the hash - verify against vendor/ before relying on that difference;
+    //   3. the guard stamps last_used_at, so a call through it leaves a trace; this path leaves none.
+    //
+    // Routes are glob-mounted per directory (Providers/RouteServiceProvider.php:75,86), so ANY new file
+    // under Http/Routes/V1 or V2 is registered automatically - a new route file can re-open this
+    // without touching either PassportRoute.php.
     public function getQuickLoginUrl(Request $request)
     {
         $authorization = $request->input('auth_data') ?? $request->header('authorization');
