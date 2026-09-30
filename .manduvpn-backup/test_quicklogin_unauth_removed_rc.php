@@ -110,6 +110,20 @@ t_check('R2-b that route carries the user middleware',
 $t2l = $actions('Passport\AuthController@token2Login');
 t_check('R9 token2Login still routed on both api versions', count($t2l) === 2, json_encode(array_keys($t2l)));
 
+// ---- R11: the seven registrations I did NOT remove are still there, on both api versions.
+// This edit deleted a line from each PassportRoute.php with a script, and the author could not run php -l
+// (no php in that tree). A syntax error or a stray deletion there would take EVERY passport route with it,
+// and R1 would still pass - an empty route table satisfies "the action is absent". R11 is what separates
+// "removed one route" from "broke the file".
+$survivors = ['Passport\AuthController@register', 'Passport\AuthController@login',
+    'Passport\AuthController@token2Login', 'Passport\AuthController@forget',
+    'Passport\AuthController@loginWithMailLink', 'Passport\CommController@sendEmailVerify',
+    'Passport\CommController@pv'];
+foreach ($survivors as $a) {
+    $got = $actions($a);
+    t_check('R11 ' . $a . ' still routed twice', count($got) === 2, json_encode(array_keys($got)));
+}
+
 $sig = fn ($t, $cols) => substr(hash('sha256', json_encode(
     DB::table($t)->orderBy('id')->get($cols)->map(fn ($r) => (array) $r)->all())), 0, 32);
 $userBefore = $sig('v2_user', ['id', 'email', 'banned']);
