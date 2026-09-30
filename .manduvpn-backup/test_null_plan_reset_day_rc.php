@@ -20,18 +20,21 @@
 // scheduled" (the expired branch), and the app omits the row when it is null (home_page.dart:856,
 // account_page.dart:342).★
 //
-// ★CORRECTION 2026-09-30 (measured, not reasoned): "the response contract does not change" was WRONG as first
-// written. Fixing the 500 let a pre-existing line finally emit its result: `$user->plan = Plan::find(NULL)` in
-// getResetDay sets a `plan` attribute holding null, so the first green response carried a NEW `plan: null`
-// key. The app tolerates it (account.dart:103-104 does `plan is Map ? ... : null`, so null and absent parse
-// alike), but tolerated is not unchanged. The early `plan_id === null` return removes the key, and R2-b is
-// what holds that. Lesson: a field can be added by DELETING a 500, with no line that adds a field.★
+// ★CORRECTION 2026-09-30 (measured, not reasoned): "the response contract does not change" is RIGHT, but the
+// first version of R2-b was wrong about what that contract IS. `$user->plan = Plan::find($user->plan_id)` in
+// getResetDay sets a `plan` attribute holding null, and it sits ABOVE the expired-at early return - so a
+// plan-less user with a PAST expiry has been served 200 with `plan: null` since before this fix. The 500 case
+// showed an empty data array, and R2-b read that emptiness as "the key is absent". ★A field's absence in a
+// failed response is not evidence about the contract - there is no response to carry it.★ R2-b now asserts
+// present-and-null, R2-b-http measures the untouched expired path on the same run, and the guard adds no
+// field at all. ★The first attempt at this fix added an early `plan_id === null` return to make the key
+// absent; that would have REMOVED a field from the expired path, which had always sent it.★
 //
-// ★MUTATION CHECK (run it, do not assume). TWO guards, and they fail DIFFERENT rows - check them separately:
-//   (1) delete `if ($user->plan === null) return null;`      -> ★R1 and R2 MUST fail (R2 as http=500)★
-//   (2) delete the earlier `if ($user->plan_id === null) return null;` -> ★R2-b MUST fail★ (R1/R2 stay green:
-//       the response still answers 200, it just grows the `plan: null` key that guard (1) lets through)
-// A green run against either mutation means this suite is measuring nothing.★
+// ★MUTATION CHECK (run it, do not assume): delete the `if ($user->plan === null) return null;` guard from
+// UserService::getResetDay and re-run. R1 and R2 MUST fail (R2 as http=500). A green run against the
+// unguarded function means this suite is measuring nothing. ★R2-b and R2-b-http MUST STAY GREEN under that
+// mutation★ - they describe a response shape the guard does not touch, so if they move, the guard is doing
+// more than it claims to do.★
 //
 // ★NO RESULT HERE IS ENGINE-DEPENDENT, so nothing is marked "(on SQLite)". The reason, not the absence of a
 // marker, is what matters: getSubscribe and getResetDay contain no whereJsonContains and no JSON predicate -
@@ -126,23 +129,46 @@ try {
     [$st2, $j2] = $req($authNull);
     t_check('R2 NULL-PLAN-RESET-DAY: GET getSubscribe answers 200 (was 500, measured 5x on 2026-09-30)',
         $st2 === 200, 'http=' . $st2);
-    // ★`plan` must be ABSENT, and the reason is NOT UserController:139.★ That assignment sits inside
-    // `if ($user->plan_id)` and cannot run here. The key comes from getResetDay itself: `$user->plan =
-    // Plan::find($user->plan_id)` sets a `plan` attribute holding null, which $this->success($user)
-    // serialises. It stayed invisible while this endpoint answered 500 - no successful response existed to
-    // carry it. The early `plan_id === null` return is what keeps the contract unchanged, so this assertion
-    // now guards THAT return, and it also still catches a future "helpful" null plan object.
+    // ★`plan` is PRESENT and null, and that is the pre-existing contract - not a concession.★ Measured on
+    // the test panel 2026-09-30: the key list came back with `plan` between `subscribe_url` and `reset_day`,
+    // exactly where getResetDay's own `$user->plan = Plan::find($user->plan_id)` inserts it. ★That assignment
+    // sits ABOVE the expired-at early return★, so a plan-less user with a PAST expiry has been answering 200
+    // with `plan: null` since long before this fix - R2-b-http below measures that on the same run. The first
+    // wording of this line ("carries no `plan` key") was written from the 500 case, where no successful
+    // response existed to carry anything, so it mistook "nothing to see" for "key absent". ★Making the key
+    // absent would therefore ADD a contract change to a path that already worked★ - the opposite of the goal.
+    // ★This is not a lowered expectation: it still forbids a populated plan object★ (=== null is stricter than
+    // an existence check), which is the risk the line was written for. The app reads either form identically
+    // (account.dart:103-104 does `plan is Map ? ... : null`), so the client cannot tell them apart anyway.
     $d2 = (array) ($j2['data'] ?? []);
-    t_check('R2-b NULL-PLAN-RESET-DAY: response carries no `plan` key', !array_key_exists('plan', $d2),
-        json_encode(array_keys($d2)));
+    t_check('R2-b NULL-PLAN-RESET-DAY: `plan` is present and null, never a populated object',
+        array_key_exists('plan', $d2) && $d2['plan'] === null,
+        json_encode(array_keys($d2)) . ' plan=' . (array_key_exists('plan', $d2) ? var_export($d2['plan'], true) : 'ABSENT'));
     // ★Do NOT write `($d2['reset_day'] ?? 'x') === null` here.★ `??` fires on null, so it returns 'x' for the
     // very value this line exists to accept: the assertion could never pass, and the detail printed "ABSENT"
     // for a key that was present. Measured FAIL before AND after deployment on 2026-09-30 - it never flipped,
-    // because nothing about the code could have flipped it. array_key_exists separates absent from null;
-    // `=== null` then tests the value. A check that cannot succeed measures as little as one that cannot fail.
+    // because nothing about the code could have flipped it. ★A check that cannot move either way measures
+    // nothing - a check that cannot SUCCEED and one that cannot FAIL are the same defect wearing two faces,
+    // and `??` feeding a `=== null` comparison is the textbook case of the first.★ array_key_exists separates
+    // absent from null; `=== null` then tests the value. ★Both directions are asserted on this run: R2-b-http
+    // is the input that makes these lines pass, R1/R2 are the inputs that fail without the guard.★
     t_check('R2-c NULL-PLAN-RESET-DAY: reset_day is null, so the app omits the row',
         array_key_exists('reset_day', $d2) && $d2['reset_day'] === null,
         array_key_exists('reset_day', $d2) ? var_export($d2['reset_day'], true) : 'ABSENT');
+
+    // ---- R2-b-http: the SAME plan-less user, PAST expiry - the path that already answered 200 -------------
+    // ★This is the row that decides R2-b's shape, and it is a measurement, not an argument.★ The expired
+    // branch returns before the guard, so this response predates the fix entirely. If `plan: null` shows up
+    // HERE too, then "present and null" is what a plan-less user has always received and R2-b is recording
+    // the contract; if it does NOT, then the fix changed the shape and R2-b must go back to demanding absence.
+    // ★Without this row, R2-b rests on my reading of line order. With it, the panel answers.★
+    $uPast = $mkUser(null, $past);
+    $authPast = (new AuthService(User::find($uPast->id)))->generateAuthData()['auth_data'];
+    [$stP, $jP] = $req($authPast);
+    $dP = (array) ($jP['data'] ?? []);
+    t_check('R2-b-http NULL-PLAN-RESET-DAY: plan-less + PAST expiry already answered `plan` present and null',
+        $stP === 200 && array_key_exists('plan', $dP) && $dP['plan'] === null,
+        'http=' . $stP . ' keys=' . json_encode(array_keys($dP)));
 
     // ---- R3: controls. The guard must change NOTHING for a user who has a plan ----------------------------
     // One case per branch of the switch the guard sits above, so a guard placed too early is caught.
