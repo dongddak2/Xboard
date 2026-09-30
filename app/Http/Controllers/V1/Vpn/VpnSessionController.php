@@ -149,10 +149,17 @@ class VpnSessionController extends Controller
         // (both session suites do), and the app contract comment (vpn_session_api.dart:12) says "required before
         // connecting" without saying in which order - that gap is why this note exists.
         //
-        // The identifier is not one of the app's nine, so VpnErrorCode.fromServerCode maps it to `unknown`,
-        // which shows a generic "try again" message. That is the CORRECT instruction here: the fix is another
-        // connect attempt, which re-fetches the profile and issues a fresh credential. AUTH_FAILED would have
-        // told the user to log in again, which would not help.
+        // As of 2026-09-30 the app maps this identifier to its own VpnErrorCode.credentialExpired
+        // (vpn_error.dart, commit f5ffafd), which renders the existing string vpnCredentialUnavailable - four
+        // locales, each telling the user to try again shortly. That instruction is the right one: the fix is
+        // another connect attempt, which re-fetches the profile and issues a fresh credential. AUTH_FAILED would
+        // have told the user to log in again, which would not help.
+        // Before that commit the identifier fell to `unknown`, whose text names no action - so this note used to
+        // claim the generic message already said "try again", which it never did. The claim was about the APP's
+        // behaviour, and nothing here fails when the app changes it, so it is written as a dated observation:
+        // re-read vpn_error.dart before relying on it.
+        // Still uncovered: if the credential cannot be DECRYPTED (a key rotation, Hy2CredentialService.php:136),
+        // this same point answers 500 with no error identifier at all, which the app can only show as unknown.
         if ($protocol === 'hysteria2' && Hy2CredentialService::liveSecret((int) $user->id) === null) {
             return $this->fail([403, 'VPN 접속 정보가 만료되었습니다. 다시 연결해 주세요'], null, 'HY2_CREDENTIAL_EXPIRED');
         }
