@@ -53,6 +53,15 @@ class UserService
 
     public function getResetDay(User $user)
     {
+        // ManduVPN NULL-PLAN-RESET-DAY: return before the assignment below, not after it. `$user->plan =
+        // Plan::find(NULL)` SETS a `plan` attribute whose value is null, and $this->success($user) in
+        // UserController:147 serialises it - so a plan-less user's response grows a `plan: null` key that was
+        // never there while this endpoint answered 500. Measured on the test panel 2026-09-30: the key list
+        // came back with `plan` between `subscribe_url` and `reset_day`, which is exactly where :57 inserts
+        // it. Returning here keeps the response contract identical and skips a Plan::find(NULL) query.
+        // The `$user->plan === null` guard below stays: it covers plan_id SET but the plan row deleted.
+        if ($user->plan_id === null)
+            return null;
         if (!isset($user->plan)) {
             $user->plan = Plan::find($user->plan_id);
         }

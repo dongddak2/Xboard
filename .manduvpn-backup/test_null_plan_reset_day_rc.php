@@ -18,11 +18,20 @@
 // and then selects ->whereIn('plan_id', $planIds), so plan_id NULL matches no group. A date here would be a
 // lie about something that will not happen. null is the value this function already uses for "no reset
 // scheduled" (the expired branch), and the app omits the row when it is null (home_page.dart:856,
-// account_page.dart:342) - so the response contract does not change.★
+// account_page.dart:342).★
 //
-// ★MUTATION CHECK (run it, do not assume): delete the `if ($user->plan === null) return null;` guard from
-// UserService::getResetDay and re-run. R1 and R2 MUST fail (R2 as http=500). A green run against the
-// unguarded function means this suite is measuring nothing.★
+// ★CORRECTION 2026-09-30 (measured, not reasoned): "the response contract does not change" was WRONG as first
+// written. Fixing the 500 let a pre-existing line finally emit its result: `$user->plan = Plan::find(NULL)` in
+// getResetDay sets a `plan` attribute holding null, so the first green response carried a NEW `plan: null`
+// key. The app tolerates it (account.dart:103-104 does `plan is Map ? ... : null`, so null and absent parse
+// alike), but tolerated is not unchanged. The early `plan_id === null` return removes the key, and R2-b is
+// what holds that. Lesson: a field can be added by DELETING a 500, with no line that adds a field.★
+//
+// ★MUTATION CHECK (run it, do not assume). TWO guards, and they fail DIFFERENT rows - check them separately:
+//   (1) delete `if ($user->plan === null) return null;`      -> ★R1 and R2 MUST fail (R2 as http=500)★
+//   (2) delete the earlier `if ($user->plan_id === null) return null;` -> ★R2-b MUST fail★ (R1/R2 stay green:
+//       the response still answers 200, it just grows the `plan: null` key that guard (1) lets through)
+// A green run against either mutation means this suite is measuring nothing.★
 //
 // ★NO RESULT HERE IS ENGINE-DEPENDENT, so nothing is marked "(on SQLite)". The reason, not the absence of a
 // marker, is what matters: getSubscribe and getResetDay contain no whereJsonContains and no JSON predicate -
@@ -117,13 +126,23 @@ try {
     [$st2, $j2] = $req($authNull);
     t_check('R2 NULL-PLAN-RESET-DAY: GET getSubscribe answers 200 (was 500, measured 5x on 2026-09-30)',
         $st2 === 200, 'http=' . $st2);
-    // `plan` absent rather than null: getSubscribe only sets it inside `if ($user->plan_id)` (:138), and the
-    // app's Subscription model reads it as optional. Asserted so a future "helpful" null plan object is caught.
-    t_check('R2-b NULL-PLAN-RESET-DAY: response carries no `plan` key', !array_key_exists('plan', (array) ($j2['data'] ?? [])),
-        json_encode(array_keys((array) ($j2['data'] ?? []))));
+    // ★`plan` must be ABSENT, and the reason is NOT UserController:139.★ That assignment sits inside
+    // `if ($user->plan_id)` and cannot run here. The key comes from getResetDay itself: `$user->plan =
+    // Plan::find($user->plan_id)` sets a `plan` attribute holding null, which $this->success($user)
+    // serialises. It stayed invisible while this endpoint answered 500 - no successful response existed to
+    // carry it. The early `plan_id === null` return is what keeps the contract unchanged, so this assertion
+    // now guards THAT return, and it also still catches a future "helpful" null plan object.
+    $d2 = (array) ($j2['data'] ?? []);
+    t_check('R2-b NULL-PLAN-RESET-DAY: response carries no `plan` key', !array_key_exists('plan', $d2),
+        json_encode(array_keys($d2)));
+    // ★Do NOT write `($d2['reset_day'] ?? 'x') === null` here.★ `??` fires on null, so it returns 'x' for the
+    // very value this line exists to accept: the assertion could never pass, and the detail printed "ABSENT"
+    // for a key that was present. Measured FAIL before AND after deployment on 2026-09-30 - it never flipped,
+    // because nothing about the code could have flipped it. array_key_exists separates absent from null;
+    // `=== null` then tests the value. A check that cannot succeed measures as little as one that cannot fail.
     t_check('R2-c NULL-PLAN-RESET-DAY: reset_day is null, so the app omits the row',
-        array_key_exists('reset_day', (array) ($j2['data'] ?? [])) && ($j2['data']['reset_day'] ?? 'x') === null,
-        json_encode($j2['data']['reset_day'] ?? 'ABSENT'));
+        array_key_exists('reset_day', $d2) && $d2['reset_day'] === null,
+        array_key_exists('reset_day', $d2) ? var_export($d2['reset_day'], true) : 'ABSENT');
 
     // ---- R3: controls. The guard must change NOTHING for a user who has a plan ----------------------------
     // One case per branch of the switch the guard sits above, so a guard placed too early is caught.
