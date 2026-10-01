@@ -129,7 +129,14 @@ try {
     $inviter = $u;
     $code = null;
     if ($inviter) {
-        $code = InviteCode::create(['user_id' => $inviter->id, 'code' => 'RBCONSENT' . Str::upper(Str::random(8)), 'status' => 0, 'pv' => 0]);
+        // the app never mass-assigns InviteCode (InviteController::save uses new + attribute assignment),
+        // so the model is totally guarded on purpose -- the fixture matches that pattern instead of widening it
+        $code = new InviteCode();
+        $code->user_id = $inviter->id;
+        $code->code = 'RBCONSENT' . Str::upper(Str::random(8));
+        $code->status = 0;
+        $code->pv = 0;
+        if (!$code->save()) $code = null;
     }
     if ($code) {
         [$stNo] = $register(['invite_code' => $code->code], false);
