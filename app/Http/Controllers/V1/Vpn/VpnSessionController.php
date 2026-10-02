@@ -111,24 +111,24 @@ class VpnSessionController extends Controller
         }
 
         if (!(new UserService())->isAvailable($user)) {
-            return $this->fail([403, '이용 중인 구독이 없어 VPN 세션을 발급할 수 없습니다'], null, 'SUBSCRIPTION_EXPIRED');
+            return $this->fail([403, __('Active subscription required to issue a VPN session')], null, 'SUBSCRIPTION_EXPIRED');
         }
 
         $protocol = (string) $request->input('protocol');
         if (!isset(self::PROTOCOL_TO_NODE_TYPE[$protocol])) {
-            return $this->fail([403, '지원하지 않는 프로토콜입니다'], null, 'PROTOCOL_NOT_ALLOWED');
+            return $this->fail([403, __('Unsupported protocol')], null, 'PROTOCOL_NOT_ALLOWED');
         }
 
         $routingMode = (string) ($request->input('routingMode') ?: 'FULL_TUNNEL');
         if (!in_array($routingMode, self::ROUTING_MODES, true)) {
-            return $this->fail([422, '지원하지 않는 라우팅 모드입니다'], null, 'PROTOCOL_NOT_ALLOWED');
+            return $this->fail([422, __('Unsupported routing mode')], null, 'PROTOCOL_NOT_ALLOWED');
         }
 
         $server = $this->eligibleServerFor($user, (int) $request->input('serverId'), $protocol);
         if (!$server) {
             // Indistinguishable from "no such server": this must not enumerate nodes. 4xx, never 200 - a 200
             // refusal would be read as ACTIVE by the app and it would connect. See the class note.
-            return $this->fail([403, '해당 서버에 접속할 권한이 없습니다'], null, 'SERVER_NOT_ALLOWED');
+            return $this->fail([403, __('You are not allowed to connect to this server')], null, 'SERVER_NOT_ALLOWED');
         }
 
         // ManduVPN HY2-CRED-1: ★WE ENFORCE THE CREDENTIAL'S EXPIRY, THE NODE DOES NOT.★ Dropping a lapsed user
@@ -161,7 +161,7 @@ class VpnSessionController extends Controller
         // Still uncovered: if the credential cannot be DECRYPTED (a key rotation, Hy2CredentialService.php:136),
         // this same point answers 500 with no error identifier at all, which the app can only show as unknown.
         if ($protocol === 'hysteria2' && Hy2CredentialService::liveSecret((int) $user->id) === null) {
-            return $this->fail([403, 'VPN 접속 정보가 만료되었습니다. 다시 연결해 주세요'], null, 'HY2_CREDENTIAL_EXPIRED');
+            return $this->fail([403, __('Your VPN connection info has expired, please connect again')], null, 'HY2_CREDENTIAL_EXPIRED');
         }
 
         $now = time();
@@ -247,7 +247,7 @@ class VpnSessionController extends Controller
 
         if (!$session) {
             // Indistinguishable from "not yours", same as everywhere else here.
-            return $this->fail([404, '세션을 찾을 수 없습니다'], null, 'SESSION_NOT_FOUND');
+            return $this->fail([404, __('Session not found')], null, 'SESSION_NOT_FOUND');
         }
 
         if ($session->status === VpnSession::STATUS_ACTIVE) {

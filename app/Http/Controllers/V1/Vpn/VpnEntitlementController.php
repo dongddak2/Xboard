@@ -80,7 +80,7 @@ class VpnEntitlementController extends Controller
         }
 
         if (!(new UserService())->isAvailable($user)) {
-            return $this->fail([403, '이용 중인 구독이 없어 VPN 권한을 조회할 수 없습니다'], null, 'SUBSCRIPTION_EXPIRED');
+            return $this->fail([403, __('Active subscription required to read VPN entitlement')], null, 'SUBSCRIPTION_EXPIRED');
         }
 
         $data = [

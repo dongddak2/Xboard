@@ -80,14 +80,23 @@ return [
     |
     */
 
-    // ManduVPN I18N-P0: the client does not send a `content-language` header yet
-    // (web/src/lib/api/client.ts), so this value — not the header — decides the
-    // language of every API message today. It was 'zh-CN', which is why a Korean
-    // user saw Chinese on a wrong password. Changing only `fallback_locale` below
-    // would NOT have fixed that: zh-CN.json is complete, so the fallback never
-    // engaged. Nothing in the app branches on the locale (the only reader outside
-    // the middleware is `<html lang>` in client/subscribe.blade.php), so this is
-    // a message-language change, not a behaviour change.
+    // ManduVPN I18N-P0 / RAO-30: it was 'zh-CN', which is why a Korean user saw Chinese
+    // on a wrong password. Changing only `fallback_locale` below would NOT have fixed
+    // that: zh-CN.json is complete, so the fallback never engaged.
+    //
+    // RAO-30 correction: the earlier note here said the clients do not send a
+    // `content-language` header yet, and inferred from that this value decides the
+    // language of every API message. Both clients send it today (web
+    // src/lib/api/client.ts:302; app lib/core/api/api_client.dart:56 and
+    // xboard_client.dart:76), so the HEADER decides the locale
+    // (Http/Middleware/Language.php reads `content-language` and nothing else) and this
+    // value is the drain for header-less callers only. Keep the value: a header-less
+    // caller must still get Korean, not Chinese.
+    //
+    // Nothing in the app branches on the locale (the only reader outside the middleware
+    // is `<html lang>` in client/subscribe.blade.php), so this is a message-language
+    // setting, not a behaviour switch. Repo vs live: this file says 'ko-KR'; whether the
+    // running panel is serving this value is UNMEASURED here (server access is INFRA's).
     'locale' => 'ko-KR',
 
     /*

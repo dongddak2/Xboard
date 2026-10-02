@@ -89,13 +89,13 @@ class Hysteria2ProfileController extends Controller
 
         // An expired / banned / out-of-traffic subscription gets no credential. Same gate the node list uses.
         if (!(new UserService())->isAvailable($user)) {
-            return $this->fail([403, '이용 중인 구독이 없어 VPN 접속 정보를 제공할 수 없습니다'], null, 'HY2_SUBSCRIPTION_INACTIVE');
+            return $this->fail([403, __('Active subscription required to issue VPN connection info')], null, 'HY2_SUBSCRIPTION_INACTIVE');
         }
 
         $server = $this->eligibleServerFor($user, (int) $request->input('server_id'));
         if (!$server) {
             // Deliberately indistinguishable from "no such server": no enumeration.
-            return $this->fail([404, '해당 서버에 접속할 권한이 없습니다'], null, 'HY2_SERVER_NOT_ELIGIBLE');
+            return $this->fail([404, __('You are not allowed to connect to this server')], null, 'HY2_SERVER_NOT_ELIGIBLE');
         }
 
         // Reuse the allocation the subscription path uses, so a port range yields the same shape here:
@@ -109,7 +109,7 @@ class Hysteria2ProfileController extends Controller
         // usable (the app already reads a 500 from this endpoint as an issuing failure).
         $credential = (string) Hy2CredentialService::password($user);
         if ($credential === '') {
-            return $this->fail([500, 'VPN 접속 정보를 발급할 수 없습니다'], null, 'HY2_CREDENTIAL_UNAVAILABLE');
+            return $this->fail([500, __('VPN connection info could not be issued')], null, 'HY2_CREDENTIAL_UNAVAILABLE');
         }
 
         $settings = $server->protocol_settings;

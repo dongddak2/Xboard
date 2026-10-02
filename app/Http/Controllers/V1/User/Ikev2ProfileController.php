@@ -84,20 +84,20 @@ class Ikev2ProfileController extends Controller
 
         // An expired / banned / out-of-traffic subscription gets no credential. Same gate the node list uses.
         if (!(new UserService())->isAvailable($user)) {
-            return $this->fail([403, '이용 중인 구독이 없어 VPN 접속 정보를 제공할 수 없습니다'], null, 'IKEV2_SUBSCRIPTION_INACTIVE');
+            return $this->fail([403, __('Active subscription required to issue VPN connection info')], null, 'IKEV2_SUBSCRIPTION_INACTIVE');
         }
 
         $server = $this->eligibleServerFor($user, (int) $request->input('server_id'));
         if (!$server) {
             // Deliberately indistinguishable from "no such server": no enumeration, no credential created.
-            return $this->fail([404, '해당 서버에 접속할 권한이 없습니다'], null, 'IKEV2_SERVER_NOT_ELIGIBLE');
+            return $this->fail([404, __('You are not allowed to connect to this server')], null, 'IKEV2_SERVER_NOT_ELIGIBLE');
         }
 
         VpnCredentialService::ensure($user);
         $plain = VpnCredentialService::get($user);
         if ($plain === null) {
             // ensure() just returned a row, so this only happens if it vanished between the two calls.
-            return $this->fail([500, 'VPN 접속 정보를 읽을 수 없습니다'], null, 'IKEV2_CREDENTIAL_UNAVAILABLE');
+            return $this->fail([500, __('VPN connection info could not be read')], null, 'IKEV2_CREDENTIAL_UNAVAILABLE');
         }
 
         return response([

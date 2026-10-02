@@ -135,7 +135,7 @@ class TicketController extends Controller
     public function withdraw(TicketWithdraw $request)
     {
         if ((int)admin_setting('withdraw_close_enable', 0)) {
-            return $this->fail([400, 'Unsupported withdraw']);
+            return $this->fail([400, __('Unsupported withdrawal method')]);
         }
         if (!in_array(
             $request->input('withdraw_method'),

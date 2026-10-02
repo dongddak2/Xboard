@@ -56,7 +56,7 @@ class VpnCredentialService
                 }
             }
         }
-        throw new ApiException('VPN 계정 생성에 실패했습니다', 500);
+        throw new ApiException(__('Failed to create the VPN account'), 500);
     }
 
     /** Explicit plaintext read: ['username', 'secret', 'rotated_at'] or null when the user has no credential. */
@@ -74,7 +74,7 @@ class VpnCredentialService
     {
         $cred = VpnCredential::find($user->id);
         if (!$cred) {
-            throw new ApiException('VPN 계정이 없습니다', 404);
+            throw new ApiException(__('VPN account not found'), 404);
         }
         $secret = self::random(self::ALNUM, self::SECRET_LEN);
         $cred->forceFill(['secret_enc' => Crypt::encryptString($secret), 'rotated_at' => time()])->save();

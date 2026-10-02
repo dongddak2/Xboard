@@ -41,7 +41,7 @@ class TicketService {
         $ticket = Ticket::where('id', $ticketId)
             ->first();
         if (!$ticket) {
-            throw new ApiException('工单不存在');
+            throw new ApiException(__('Ticket does not exist'));
         }
         $ticket->status = Ticket::STATUS_OPENING;
         try{
@@ -57,7 +57,7 @@ class TicketService {
                 $ticket->reply_status = Ticket::STATUS_CLOSED;
             }
             if (!$ticketMessage || !$ticket->save()) {
-                throw new ApiException('工单回复失败');
+                throw new ApiException(__('Ticket reply failed'));
             }
             DB::commit();
         }catch(\Exception $e){
