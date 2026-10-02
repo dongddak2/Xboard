@@ -77,5 +77,26 @@ t_check('en-US renders the English source', __('Unsupported protocol') === 'Unsu
 app()->setLocale('zh-CN');
 t_check('zh-CN translates instead of echoing English', __('Unsupported protocol') !== 'Unsupported protocol', __('Unsupported protocol'));
 
+// RAO-30 / session identifier: the four auth-middleware throws must carry the machine code as the
+// THIRD ApiException argument, because that argument is what reaches the response `error` field
+// (ApiException::errors() -> Handler::render -> fail(..., $errors) -> jsonResponse 'error').
+// Asserted statically on purpose: the web clears a stored session off this identifier, so a site that
+// silently loses its third argument leaves an expired user on a screen that loads nothing -- a
+// behaviour failure no status-code or translation check can see.
+$sites = [
+    '/www/app/Http/Middleware/User.php' => 1,
+    '/www/app/Http/Middleware/Admin.php' => 1,
+    '/www/app/Http/Middleware/Staff.php' => 2,
+];
+$pattern = "/ApiException\\(\\s*__\\('Not logged in or the login has expired'\\)\\s*,\\s*403\\s*,\\s*'SESSION_EXPIRED'\\s*\\)/";
+foreach ($sites as $file => $expected) {
+    $src = is_file($file) ? file_get_contents($file) : '';
+    $n = preg_match_all($pattern, $src);
+    t_check('SESSION_EXPIRED carried in ' . basename($file), $n === $expected, "found $n, expected $expected");
+    // No site may still throw the old raw literal: that string is what the web matched on, and one
+    // left behind means a single failure ships two different payloads.
+    t_check('old raw literal gone from ' . basename($file), strpos($src, '未登录或登陆已过期') === false);
+}
+
 echo "\nRESULT " . ($fails === 0 ? 'PASS' : "FAIL ($fails)") . "\n";
 exit($fails === 0 ? 0 : 1);

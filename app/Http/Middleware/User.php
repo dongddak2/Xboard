@@ -20,7 +20,7 @@ class User
     public function handle($request, Closure $next)
     {
         if (!Auth::guard('sanctum')->check()) {
-            throw new ApiException(__('Not logged in or the login has expired'), 403);
+            throw new ApiException(__('Not logged in or the login has expired'), 403, 'SESSION_EXPIRED');
         }
         return $next($request);
     }
