@@ -77,26 +77,76 @@ t_check('en-US renders the English source', __('Unsupported protocol') === 'Unsu
 app()->setLocale('zh-CN');
 t_check('zh-CN translates instead of echoing English', __('Unsupported protocol') !== 'Unsupported protocol', __('Unsupported protocol'));
 
-// RAO-30 / session identifier: the four auth-middleware throws must carry the machine code as the
+// RAO-30 / session identifier: each auth-middleware throw must carry the right machine code as the
 // THIRD ApiException argument, because that argument is what reaches the response `error` field
 // (ApiException::errors() -> Handler::render -> fail(..., $errors) -> jsonResponse 'error').
-// Asserted statically on purpose: the web clears a stored session off this identifier, so a site that
-// silently loses its third argument leaves an expired user on a screen that loads nothing -- a
-// behaviour failure no status-code or translation check can see.
-$sites = [
-    '/www/app/Http/Middleware/User.php' => 1,
-    '/www/app/Http/Middleware/Admin.php' => 1,
-    '/www/app/Http/Middleware/Staff.php' => 2,
+//
+// Per-THROW, not per-file: Staff.php has two causes behind one guard and they are NOT the same
+// failure. decryptAuthData() returning null is an expired or forged token; !is_staff is a permission
+// refusal with a perfectly live session. A client that clears the stored session on SESSION_EXPIRED
+// would sign out a logged-in non-staff user, so the second one must never report the session code.
+// Asserted statically because no status-code or translation check can see a wrong identifier.
+$expected = [
+    '/www/app/Http/Middleware/User.php' => ['SESSION_EXPIRED' => 1, 'STAFF_PERMISSION_REQUIRED' => 0],
+    '/www/app/Http/Middleware/Admin.php' => ['SESSION_EXPIRED' => 1, 'STAFF_PERMISSION_REQUIRED' => 0],
+    // :21 no token + :28 decrypt failure = session; :29 !is_staff = permission.
+    '/www/app/Http/Middleware/Staff.php' => ['SESSION_EXPIRED' => 2, 'STAFF_PERMISSION_REQUIRED' => 1],
 ];
-$pattern = "/ApiException\\(\\s*__\\('Not logged in or the login has expired'\\)\\s*,\\s*403\\s*,\\s*'SESSION_EXPIRED'\\s*\\)/";
-foreach ($sites as $file => $expected) {
-    $src = is_file($file) ? file_get_contents($file) : '';
-    $n = preg_match_all($pattern, $src);
-    t_check('SESSION_EXPIRED carried in ' . basename($file), $n === $expected, "found $n, expected $expected");
+$sources = [];
+foreach ($expected as $file => $counts) {
+    $src = $sources[$file] = is_file($file) ? file_get_contents($file) : '';
+    foreach ($counts as $code => $n) {
+        $pattern = "/ApiException\(\s*__\('[^']+'\)\s*,\s*403\s*,\s*'" . $code . "'\s*\)/";
+        $found = preg_match_all($pattern, $src);
+        t_check("$code x$n in " . basename($file), $found === $n, "found $found, expected $n");
+    }
     // No site may still throw the old raw literal: that string is what the web matched on, and one
     // left behind means a single failure ships two different payloads.
     t_check('old raw literal gone from ' . basename($file), strpos($src, '未登录或登陆已过期') === false);
 }
+
+// The retraction itself, pinned: the !is_staff guard must sit on its own line with the permission
+// identifier. Written as one assertion on the guard rather than a count, because a future edit that
+// merges the two guards back together would keep every count above correct.
+$staff = $sources['/www/app/Http/Middleware/Staff.php'];
+t_check(
+    '!is_staff throws the permission code, not the session code',
+    (bool) preg_match("/if \(!\\\$user\['is_staff'\]\) throw new ApiException\(__\('Staff permission required'\), 403, 'STAFF_PERMISSION_REQUIRED'\);/", $staff),
+    'the !is_staff guard must be its own statement carrying STAFF_PERMISSION_REQUIRED'
+);
+t_check(
+    'no guard mixes !$user with !is_staff behind one identifier',
+    strpos($staff, "!\$user || !\$user['is_staff']") === false,
+    'decrypt failure and permission refusal must stay separate throws'
+);
+
+// The `error` field is a STRING, and the web depends on that: it compares payload.error to an
+// identifier. ApiException names its third parameter $errors and Handler passes it straight through,
+// so an array there is syntactically possible -- it would make the web's comparison silently false.
+// This asserts the shape at every producer instead of trusting a one-off measurement.
+// Boundary: this catches a literal array and a validator bag in the THIRD argument position. It does
+// not follow a variable, so `fail([c,m], null, $x)` where $x later becomes an array is out of reach --
+// a one-off source read is what covers that, and 21 of 21 producers at 3a578b7 pass a quoted literal.
+// Position-aware on purpose: an argument-blind pattern flags the DATA argument of
+// `fail([code,msg], ['a'=>1])`, which is 4 false positives on this tree.
+$thirdArgs = [];
+$patterns = [
+    '/fail\(\s*\[[^\]]*\]\s*,[^,;]*,\s*(\[|array\(|\$[A-Za-z_]+->(?:errors|all)\()/s',
+    '/new ApiException\(\s*(?:__\([^)]*\)|\'[^\']*\'|"[^"]*")\s*,[^,;]*,\s*(\[|array\(|\$[A-Za-z_]+->(?:errors|all)\()/s',
+];
+$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator('/www/app'));
+foreach ($it as $f) {
+    if (!$f->isFile() || $f->getExtension() !== 'php') continue;
+    $src = file_get_contents($f->getPathname());
+    foreach ($patterns as $pat) {
+        if (preg_match_all($pat, $src, $m, PREG_OFFSET_CAPTURE)) {
+            foreach ($m[1] as $hit) {
+                $thirdArgs[] = basename($f->getPathname()) . ':' . (substr_count(substr($src, 0, $hit[1]), "\n") + 1);
+            }
+        }
+    }
+}
+t_check('no producer puts an array in the `error` field', $thirdArgs === [], implode(' | ', $thirdArgs));
 
 echo "\nRESULT " . ($fails === 0 ? 'PASS' : "FAIL ($fails)") . "\n";
 exit($fails === 0 ? 0 : 1);

@@ -159,5 +159,6 @@
     "Your VPN connection info has expired, please connect again": "VPN 連線資訊已過期，請重新連線",
     "Session not found": "找不到會話",
     "Failed to create the VPN account": "VPN 帳號建立失敗",
-    "VPN account not found": "VPN 帳號不存在"
+    "VPN account not found": "VPN 帳號不存在",
+    "Staff permission required": "無客服權限"
 }

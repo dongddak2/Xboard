@@ -162,5 +162,6 @@
     "Your VPN connection info has expired, please connect again": "VPN 接続情報の有効期限が切れました。再接続してください",
     "Session not found": "セッションが見つかりません",
     "Failed to create the VPN account": "VPN アカウントの作成に失敗しました",
-    "VPN account not found": "VPN アカウントがありません"
+    "VPN account not found": "VPN アカウントがありません",
+    "Staff permission required": "スタッフ権限が必要です"
 }
