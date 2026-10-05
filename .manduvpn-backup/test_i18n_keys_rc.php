@@ -25,14 +25,26 @@ foreach ($langs as $l) {
     t_check("dictionary loads: $l", is_array($dicts[$l]), is_array($dicts[$l]) ? count($dicts[$l]) . ' keys' : 'missing or invalid JSON');
 }
 
-// Collect every __('...') key the application calls. Single-quoted first argument only -- that is the
-// form the codebase uses, and a double-quoted or variable key would be a new pattern worth noticing.
+// Collect every __() key the application calls, in BOTH quote styles.
+//
+// This comment used to say single-quoted was "the form the codebase uses" and that a double-quoted
+// key "would be a new pattern worth noticing". That was false when it was written: Handler.php:98
+// was already double-quoted, and is the one key that cannot be single-quoted, because the sentence
+// contains apostrophes. The collector matched neither it nor any future double-quoted key, so the
+// string at the centre of the incident was silently absent from all four coverage assertions.
+// A variable key is still not collected; that remains a pattern worth noticing, and there are none.
 $keys = [];
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator('/www/app'));
 foreach ($it as $f) {
     if (!$f->isFile() || $f->getExtension() !== 'php') continue;
-    if (preg_match_all("/__\\(\\s*'([^']+)'/", file_get_contents($f->getPathname()), $m)) {
-        foreach ($m[1] as $k) $keys[$k] = true;
+    // BOTH quote styles. Handler.php:98 is double-quoted and CANNOT be single-quoted -- its
+    // sentence contains "we've" and "we're" -- so a single-quote-only collector excludes the one
+    // string this whole incident was about from every assertion below.
+    if (preg_match_all('/__\\(\\s*(?:\\x27([^\\x27]+)\\x27|"([^"]+)")/', file_get_contents($f->getPathname()), $m, PREG_SET_ORDER)) {
+        foreach ($m as $hit) {
+            $k = ($hit[1] ?? '') !== '' ? $hit[1] : ($hit[2] ?? '');
+            if ($k !== '') $keys[$k] = true;
+        }
     }
 }
 $keys = array_keys($keys);
@@ -70,6 +82,124 @@ foreach ($frozen as $k => $expected) {
     $got = __($k);
     t_check('ko-KR unchanged: ' . $k, $got === $expected, $got === $expected ? '' : "got [$got]");
 }
+
+// D-3. Only ko-KR had its values pinned. ja-JP and zh-TW had none and zh-CN had a single
+// "not English" check, so a wrong translation passed on 124 of 136 keys -- and the two locales
+// with no value assertion at all were zh-CN and zh-TW, which is the surface this card is fixing.
+// Measuring a surface with a ruler that has no marks on that surface is not measuring it.
+//
+// These expected strings were generated from the dictionaries as they stand at this commit, so
+// they are a FROZEN BASELINE against drift. They are NOT a review: nobody has checked that the
+// Japanese or Chinese wording is good, only that it stops changing without someone noticing.
+app()->setLocale('ja-JP');
+$frozen = [
+    'Active subscription required to issue VPN connection info' => '有効なサブスクリプションがないため VPN 接続情報を発行できません',
+    'You are not allowed to connect to this server' => 'このサーバーに接続する権限がありません',
+    'VPN connection info could not be issued' => 'VPN 接続情報を発行できません',
+    'VPN connection info could not be read' => 'VPN 接続情報を読み取れません',
+    'Active subscription required to read VPN entitlement' => '有効なサブスクリプションがないため VPN 権限を照会できません',
+    'Active subscription required to issue a VPN session' => '有効なサブスクリプションがないため VPN セッションを発行できません',
+    'Unsupported protocol' => 'サポートされていないプロトコルです',
+    'Unsupported routing mode' => 'サポートされていないルーティングモードです',
+    'Your VPN connection info has expired, please connect again' => 'VPN 接続情報の有効期限が切れました。再接続してください',
+    'Session not found' => 'セッションが見つかりません',
+    'Failed to create the VPN account' => 'VPN アカウントの作成に失敗しました',
+    'VPN account not found' => 'VPN アカウントがありません',
+    'Filtered out :count routes' => ':count 件の回線を除外しました',
+    'Subscription expires: :date' => 'プラン有効期限: :date',
+    'Days until next reset: :days' => '次回リセットまで :days 日',
+    'Remaining data: :traffic' => '残りデータ量: :traffic',
+];
+foreach ($frozen as $k => $expected) {
+    $got = __($k);
+    t_check('ja-JP unchanged: ' . $k, $got === $expected, $got === $expected ? '' : "got [$got]");
+}
+
+app()->setLocale('zh-CN');
+$frozen = [
+    'Active subscription required to issue VPN connection info' => '没有有效订阅，无法提供 VPN 连接信息',
+    'You are not allowed to connect to this server' => '无权连接该节点',
+    'VPN connection info could not be issued' => '无法签发 VPN 连接信息',
+    'VPN connection info could not be read' => '无法读取 VPN 连接信息',
+    'Active subscription required to read VPN entitlement' => '没有有效订阅，无法查询 VPN 权限',
+    'Active subscription required to issue a VPN session' => '没有有效订阅，无法签发 VPN 会话',
+    'Unsupported protocol' => '不支持的协议',
+    'Unsupported routing mode' => '不支持的路由模式',
+    'Your VPN connection info has expired, please connect again' => 'VPN 连接信息已过期，请重新连接',
+    'Session not found' => '找不到会话',
+    'Failed to create the VPN account' => 'VPN 账号创建失败',
+    'VPN account not found' => 'VPN 账号不存在',
+    'Filtered out :count routes' => '过滤掉:count条线路',
+    'Subscription expires: :date' => '套餐到期：:date',
+    'Days until next reset: :days' => '距离下次重置剩余：:days 天',
+    'Remaining data: :traffic' => '剩余流量：:traffic',
+];
+foreach ($frozen as $k => $expected) {
+    $got = __($k);
+    t_check('zh-CN unchanged: ' . $k, $got === $expected, $got === $expected ? '' : "got [$got]");
+}
+
+app()->setLocale('zh-TW');
+$frozen = [
+    'Active subscription required to issue VPN connection info' => '沒有有效訂閱，無法提供 VPN 連線資訊',
+    'You are not allowed to connect to this server' => '無權連線該節點',
+    'VPN connection info could not be issued' => '無法簽發 VPN 連線資訊',
+    'VPN connection info could not be read' => '無法讀取 VPN 連線資訊',
+    'Active subscription required to read VPN entitlement' => '沒有有效訂閱，無法查詢 VPN 權限',
+    'Active subscription required to issue a VPN session' => '沒有有效訂閱，無法簽發 VPN 會話',
+    'Unsupported protocol' => '不支援的協定',
+    'Unsupported routing mode' => '不支援的路由模式',
+    'Your VPN connection info has expired, please connect again' => 'VPN 連線資訊已過期，請重新連線',
+    'Session not found' => '找不到會話',
+    'Failed to create the VPN account' => 'VPN 帳號建立失敗',
+    'VPN account not found' => 'VPN 帳號不存在',
+    'Filtered out :count routes' => '過濾掉:count條線路',
+    'Subscription expires: :date' => '套餐到期：:date',
+    'Days until next reset: :days' => '距離下次重置剩餘：:days 天',
+    'Remaining data: :traffic' => '剩餘流量：:traffic',
+];
+foreach ($frozen as $k => $expected) {
+    $got = __($k);
+    t_check('zh-TW unchanged: ' . $k, $got === $expected, $got === $expected ? '' : "got [$got]");
+}
+
+// The three assertions below cover EVERY called key instead of a chosen few, without freezing
+// wording, so a legitimate rewrite still passes while the three ways a dictionary goes wrong
+// silently do not: the English source pasted in as the translation, an emptied value, and a
+// value written in the wrong script. The last one is this incident's own failure mode -- a
+// Korean user being shown Chinese -- so it gets a check of its own rather than a comment.
+$scriptOf = [
+    'ko-KR' => ['hangul', '/[\x{AC00}-\x{D7A3}]/u'],
+    'ja-JP' => ['kana or han', '/[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}]/u'],
+    'zh-CN' => ['han', '/[\x{4E00}-\x{9FFF}]/u'],
+    'zh-TW' => ['han', '/[\x{4E00}-\x{9FFF}]/u'],
+];
+foreach ($langs as $l) {
+    if (!is_array($dicts[$l])) continue;
+    $echoed = $blank = $wrongScript = [];
+    foreach ($keys as $k) {
+        if (!array_key_exists($k, $dicts[$l])) continue;   // absence is the assertion above
+        $v = $dicts[$l][$k];
+        if ($v === $k) $echoed[] = $k;
+        if (trim((string) $v) === '') $blank[] = $k;
+        if (!preg_match($scriptOf[$l][1], (string) $v)) $wrongScript[] = $k;
+    }
+    t_check("$l does not echo the English source back", $echoed === [], count($echoed) . ' echoed: ' . implode(' | ', array_slice($echoed, 0, 4)));
+    t_check("$l has no empty translation", $blank === [], count($blank) . ' empty: ' . implode(' | ', array_slice($blank, 0, 4)));
+    t_check("$l is written in " . $scriptOf[$l][0], $wrongScript === [], count($wrongScript) . ' wrong script: ' . implode(' | ', array_slice($wrongScript, 0, 4)));
+}
+
+// The incident's own key, named explicitly. It is double-quoted at Handler.php:98 and was the one
+// string the old collector could not see, so an assertion that merely counts keys would not prove
+// the fix. This one names it.
+$incidentKey = "Uh-oh, we've had some problems, we're working on it.";
+t_check('the double-quoted Handler.php:98 key is now collected', in_array($incidentKey, $keys, true), 'collected keys: ' . count($keys));
+foreach ($langs as $l) {
+    if (!is_array($dicts[$l])) continue;
+    t_check("the Handler.php:98 key is translated in $l", array_key_exists($incidentKey, $dicts[$l]), '');
+}
+app()->setLocale('ko-KR');
+
 
 // A locale the dictionaries do not define must degrade to readable English, never to Chinese.
 app()->setLocale('en-US');
