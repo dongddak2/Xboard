@@ -77,6 +77,17 @@ $frozen = [
     'Session not found' => '세션을 찾을 수 없습니다',
     'Failed to create the VPN account' => 'VPN 계정 생성에 실패했습니다',
     'VPN account not found' => 'VPN 계정이 없습니다',
+    // D-5. These four were added to ja-JP/zh-CN/zh-TW but not here, and my report claimed all
+    // four locales pinned the same 16 -- a symmetry I asserted without measuring it. QA measured
+    // it: 12/16/16/16. The asymmetry mattered in the wrong direction, because ko-KR is the
+    // default locale and the one this incident actually hit: a Korean wording change in these
+    // four labels fired no assertion at all, while the same change in the other three did.
+    // (A change to Chinese was still caught by the all-key wrong-script check; only drift
+    // within Korean was invisible.) Values generated from ko-KR.json, not transcribed.
+    'Filtered out :count routes' => '차단된 회선 :count개',
+    'Subscription expires: :date' => '요금제 만료: :date',
+    'Days until next reset: :days' => '다음 초기화까지 :days일',
+    'Remaining data: :traffic' => '남은 데이터: :traffic',
 ];
 foreach ($frozen as $k => $expected) {
     $got = __($k);
