@@ -278,6 +278,80 @@ foreach ($it as $f) {
 }
 t_check('no producer puts an array in the `error` field', $thirdArgs === [], implode(' | ', $thirdArgs));
 
+// D-4. The other half of the collector's blind spot: every regex here used to stop at the first
+// comma, so a CJK literal in the SECOND or later argument of __() was invisible --
+// __('Ordered :n items', ['n' => '...']) passes while interpolating Chinese into the output.
+// My own label assertion below had the same limit and I wrote it down instead of fixing it;
+// writing a limitation into a comment does not make the check see any further.
+//
+// So stop splitting on commas. This walks a whole __( ... ) call by balancing parentheses while
+// honouring quotes, which is what "read the arguments" actually requires.
+function mv_calls(string $src, string $name): array {
+    $out = [];
+    $len = strlen($src);
+    $off = 0;
+    while (($pos = strpos($src, $name . '(', $off)) !== false) {
+        $off = $pos + 1;
+        $before = $pos > 0 ? $src[$pos - 1] : ' ';
+        if (preg_match('/[A-Za-z0-9_$>]/', $before)) continue;   // ->__( or foo__( is not __(
+        $depth = 0; $quote = null;
+        for ($j = $pos + strlen($name); $j < $len; $j++) {
+            $c = $src[$j];
+            if ($quote !== null) {
+                if ($c === '\\') { $j++; continue; }
+                if ($c === $quote) $quote = null;
+                continue;
+            }
+            if ($c === "'" || $c === '"') { $quote = $c; continue; }
+            if ($c === '(') { $depth++; continue; }
+            if ($c === ')') {
+                $depth--;
+                if ($depth === 0) { $out[] = [$pos, substr($src, $pos, $j - $pos + 1)]; break; }
+            }
+        }
+    }
+    return $out;
+}
+
+// Split a call's arguments on TOP-LEVEL commas only, so a nested array stays whole.
+function mv_args(string $call): array {
+    $inner = substr($call, strpos($call, '(') + 1, -1);
+    $args = []; $cur = ''; $depth = 0; $quote = null;
+    for ($i = 0; $i < strlen($inner); $i++) {
+        $c = $inner[$i];
+        if ($quote !== null) {
+            $cur .= $c;
+            if ($c === '\\') { $cur .= $inner[$i + 1] ?? ''; $i++; continue; }
+            if ($c === $quote) $quote = null;
+            continue;
+        }
+        if ($c === "'" || $c === '"') { $quote = $c; $cur .= $c; continue; }
+        if ($c === '(' || $c === '[') $depth++;
+        if ($c === ')' || $c === ']') $depth--;
+        if ($c === ',' && $depth === 0) { $args[] = $cur; $cur = ''; continue; }
+        $cur .= $c;
+    }
+    if ($cur !== '') $args[] = $cur;
+    return $args;
+}
+
+$cjkArgs = [];
+$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator('/www/app'));
+foreach ($it as $f) {
+    if (!$f->isFile() || $f->getExtension() !== 'php') continue;
+    $phpSrc = file_get_contents($f->getPathname());
+    foreach (mv_calls($phpSrc, '__') as [$pos, $call]) {
+        $args = mv_args($call);
+        array_shift($args);                     // the first argument is the key, covered above
+        foreach ($args as $a) {
+            if (preg_match('/[\x{2E80}-\x{9FFF}\x{AC00}-\x{D7A3}]/u', $a)) {
+                $cjkArgs[] = basename($f->getPathname()) . ':' . (substr_count(substr($phpSrc, 0, $pos), "\n") + 1);
+            }
+        }
+    }
+}
+t_check('no __() call interpolates a CJK literal through a later argument', $cjkArgs === [], implode(' | ', $cjkArgs));
+
 // The subscription profile's info rows are `'name' =>` values, not error messages, so no assertion
 // above looks at them -- yet they reach a VPN user's server list directly. Four were Chinese
 // literals (`套餐到期：...`); a status check cannot see that and the __()-key check cannot
@@ -287,12 +361,25 @@ $clientSrc = file_get_contents('/www/app/Http/Controllers/V1/Client/ClientContro
 $labelBlock = '';
 if (preg_match('/function setSubscribeInfoToServers.*?\n    \}/s', $clientSrc, $m)) $labelBlock = $m[0];
 t_check('subscription label block found', $labelBlock !== '', strlen($labelBlock) . ' bytes');
-preg_match_all("/'name'\s*=>\s*([^,\n]+)/", $labelBlock, $lm);
-$rawLabels = array_values(array_filter($lm[1], fn ($v) => !str_starts_with(trim($v), '__(')));
+// Read each label as a WHOLE expression rather than up to the first comma. With
+// __('x', ['y' => '...']) the truncated form showed only "__('x'", so a CJK string in the
+// second argument passed this check -- the same blind spot as D-1, one layer down.
+preg_match_all("/'name'\s*=>\s*/", $labelBlock, $lm, PREG_OFFSET_CAPTURE);
+$labels = [];
+foreach ($lm[0] as $hit) {
+    $rest = substr($labelBlock, $hit[1] + strlen($hit[0]));
+    if (str_starts_with($rest, '__(')) {
+        $c = mv_calls($rest, '__');
+        $labels[] = $c ? $c[0][1] : $rest;
+    } else {
+        $labels[] = rtrim(strtok($rest, "\n"), ',');
+    }
+}
+$rawLabels = array_values(array_filter($labels, fn ($v) => !str_starts_with(trim($v), '__(')));
 t_check('every subscription label goes through __()', $rawLabels === [], implode(' | ', $rawLabels));
-$cjkLabels = array_values(array_filter($lm[1], fn ($v) => preg_match('/[\x{2E80}-\x{9FFF}\x{AC00}-\x{D7A3}]/u', $v)));
-t_check('no subscription label holds a CJK literal', $cjkLabels === [], implode(' | ', $cjkLabels));
-t_check('all four subscription labels are present', count($lm[1]) === 4, count($lm[1]) . ' labels');
+$cjkLabels = array_values(array_filter($labels, fn ($v) => preg_match('/[\x{2E80}-\x{9FFF}\x{AC00}-\x{D7A3}]/u', $v)));
+t_check('no subscription label holds a CJK literal, in ANY argument', $cjkLabels === [], implode(' | ', $cjkLabels));
+t_check('all four subscription labels are present', count($labels) === 4, count($labels) . ' labels');
 
 
 echo "\nRESULT " . ($fails === 0 ? 'PASS' : "FAIL ($fails)") . "\n";
