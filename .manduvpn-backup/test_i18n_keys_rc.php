@@ -60,6 +60,97 @@ foreach ($langs as $l) {
     $missing = array_values(array_filter($keys, fn ($k) => !array_key_exists($k, $dicts[$l])));
     t_check("every called key is translated in $l", $missing === [], count($missing) . ' missing: ' . implode(' | ', array_slice($missing, 0, 6)));
 }
+$scriptOfViews = [
+    'ko-KR' => '/[\x{AC00}-\x{D7A3}]/u',
+    'ja-JP' => '/[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}]/u',
+    'zh-CN' => '/[\x{4E00}-\x{9FFF}]/u',
+    'zh-TW' => '/[\x{4E00}-\x{9FFF}]/u',
+];
+
+// LEAD 2026-10-05: per-locale key coverage, over EVERY tree that calls __(), not only app/.
+//
+// The assertion directly above has measured per-locale coverage since the collector was
+// introduced, and it reports 0 missing in all four locales. What was never asserted is the
+// collector's TREE. It walks /www/app and nothing else, so 18 __() keys in resources/views sat
+// outside every assertion in this file -- not failing, not passing, unmeasured. One of them,
+// 'Server Error' in errors/500.blade.php, is in no dictionary at all, including en-US. That is
+// this card's own failure mode, found in the one place the ruler did not reach: a Korean user
+// gets the English word on the 500 page title and nothing reports it.
+//
+// A tree the collector does not walk is not a passing surface. The scope of a measurement has to
+// be asserted alongside its result, or the result reads as broader than it is.
+$viewKeys = [];
+foreach (['/www/resources/views', '/www/routes'] as $tree) {
+    if (!is_dir($tree)) continue;
+    $itv = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tree));
+    foreach ($itv as $f) {
+        if (!$f->isFile() || $f->getExtension() !== 'php') continue;
+        if (preg_match_all('/__\(\s*(?:\x27([^\x27]+)\x27|"([^"]+)")/', file_get_contents($f->getPathname()), $m, PREG_SET_ORDER)) {
+            foreach ($m as $hit) {
+                $k = ($hit[1] ?? '') !== '' ? $hit[1] : ($hit[2] ?? '');
+                if ($k !== '' && !in_array($k, $keys, true)) $viewKeys[$k] = true;
+            }
+        }
+    }
+}
+$viewKeys = array_keys($viewKeys);
+t_check('collector reaches the view/route trees too', count($viewKeys) > 0, count($viewKeys) . ' distinct keys called outside app/');
+
+// The assertion LEAD ordered: per-locale coverage, FAIL on MISS, over the whole called set.
+// The miss list is printed IN FULL and not sliced. The assertion above slices to 6, which is how
+// a list of names quietly becomes a count -- and the names are the part that can be acted on.
+$allKeys = array_values(array_unique(array_merge($keys, $viewKeys)));
+foreach ($langs as $l) {
+    if (!is_array($dicts[$l])) continue;
+    $missing = array_values(array_filter($allKeys, fn ($k) => !array_key_exists($k, $dicts[$l])));
+    t_check("every called key is translated in $l -- app/ AND views", $missing === [], count($missing) . ' of ' . count($allKeys) . ' missing: ' . implode(' | ', $missing));
+}
+
+// The three silent-failure checks further down run over $keys, so the view-only keys had never
+// been checked for English backflow, emptiness or wrong script either. Measured here: 17 of the
+// 18 are translated correctly in all four locales; only the absent one is absent.
+foreach ($langs as $l) {
+    if (!is_array($dicts[$l])) continue;
+    $vEchoed = $vBlank = $vWrong = [];
+    foreach ($viewKeys as $k) {
+        if (!array_key_exists($k, $dicts[$l])) continue;   // absence is the assertion above
+        $v = (string) $dicts[$l][$k];
+        if ($v === $k) $vEchoed[] = $k;
+        if (trim($v) === '') $vBlank[] = $k;
+        if (!preg_match($scriptOfViews[$l], $v)) $vWrong[] = $k;
+    }
+    t_check("view keys do not echo English back in $l", $vEchoed === [], implode(' | ', $vEchoed));
+    t_check("view keys are non-empty in $l", $vBlank === [], implode(' | ', $vBlank));
+    t_check("view keys are in the right script in $l", $vWrong === [], implode(' | ', $vWrong));
+}
+
+// Correction, in place: the app/ collector's comment says a variable key "remains a pattern worth
+// noticing, and there are none". That was true of app/ and was measured over app/ only -- the
+// sentence reads as global. There is one, in the tree the collector did not walk:
+// errors/500.blade.php passes $exception->getMessage() to the translator as a KEY, so the key is
+// not knowable until runtime and NO key-list assertion can cover it.
+//
+// ACCEPTED BOUNDARY (not a limitation to fix here).
+// residual: the message of any 500 is looked up as a translation key; a message that happens to
+//   match a dictionary key is translated, any other passes through unchanged.
+// covered instead: the inventory is pinned by location, so a NEW variable-key call anywhere in
+//   app/, views or routes fails this assertion. Whether the existing one should change is a
+//   design question with an owner, not a test question.
+// owner: RAO-30 card, LEAD. timepoint: measured at 695fa41.
+$varKeyCalls = [];
+foreach (['/www/app', '/www/resources/views', '/www/routes'] as $tree) {
+    if (!is_dir($tree)) continue;
+    $itx = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tree));
+    foreach ($itx as $f) {
+        if (!$f->isFile() || $f->getExtension() !== 'php') continue;
+        $lines = explode("\n", file_get_contents($f->getPathname()));
+        foreach ($lines as $i => $line) {
+            if (preg_match('/__\(\s*\$/', $line)) $varKeyCalls[] = basename($f->getPathname()) . ':' . ($i + 1);
+        }
+    }
+}
+sort($varKeyCalls);
+t_check('no NEW variable-key __() call appeared', $varKeyCalls === ['500.blade.php:5'], implode(' | ', $varKeyCalls));
 
 // Korean must still read exactly as it did when these messages were raw Korean literals in the
 // controllers (RAO-30 B-2). Any drift here is a user-visible regression for the default locale.
