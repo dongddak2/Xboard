@@ -185,12 +185,14 @@ foreach ($frozen as $k => $expected) {
 // Korean user being shown Chinese -- so it gets a check of its own rather than a comment.
 //
 // ACCEPTED BOUNDARY (not a limitation to fix).
-// residual: 125 keys can still be reworded within the correct script.
-// basis: post-D collector, 141 keys. timepoint: 7d0f3d3.
+// residual: 125 keys PER LOCALE can still be reworded within the correct script.
+// basis: post-D collector, 141 collected keys (collector introduced at 7d0f3d3).
+// timepoint: measured at 0e41e26, after D-5 made the pins symmetric at 16 per locale.
+//   (before D-5 this figure was not uniform: ja-JP/zh-CN/zh-TW 125, ko-KR 129.)
 // covered instead: English backflow / empty / wrong script, across all 141.
 // accepted by: LEAD, 2026-10-05.
-// reason: pinning all 141 would FAIL honest rewording, and an assertion that
-// fails on honest change gets deleted -- a switched-off guard is no guard.
+// reason: pinning all 141 would FAIL honest rewording, and an assertion that fails on
+//   honest change gets deleted -- a switched-off guard is no guard.
 $scriptOf = [
     'ko-KR' => ['hangul', '/[\x{AC00}-\x{D7A3}]/u'],
     'ja-JP' => ['kana or han', '/[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}]/u'],
