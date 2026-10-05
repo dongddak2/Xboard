@@ -142,13 +142,15 @@ foreach ($langs as $l) {
 // errors/500.blade.php passes $exception->getMessage() to the translator as a KEY, so the key is
 // not knowable until runtime and NO key-list assertion can cover it.
 //
-// ACCEPTED BOUNDARY (not a limitation to fix here).
-// residual: the message of any 500 is looked up as a translation key; a message that happens to
-//   match a dictionary key is translated, any other passes through unchanged.
-// covered instead: the inventory is pinned by location, so a NEW variable-key call anywhere in
-//   app/, views or routes fails this assertion. Whether the existing one should change is a
-//   design question with an owner, not a test question.
-// owner: RAO-30 card, LEAD. timepoint: measured at 695fa41.
+// The boundary that used to be accepted here is CLOSED. It read: "the message of any 500 is
+// looked up as a translation key", owner RAO-30 card, and it named 500.blade.php:5 as the one
+// variable-key call. RAO-46 removed that call -- the view now passes a literal -- so the
+// inventory is empty, and this assertion pins the empty set.
+//
+// It is still worth asserting, and more so now: the design question got an answer, so a
+// variable key reappearing anywhere in app/, views or routes is a regression against a decision
+// rather than an open question. Keeping the assertion at [] is what makes that visible.
+// timepoint: emptied at the RAO-46 fix; previously pinned at 695fa41.
 $varKeyCalls = [];
 $missingVarTrees = [];
 foreach ([$ROOT . '/app', $ROOT . '/resources/views', $ROOT . '/routes'] as $tree) {
@@ -164,7 +166,7 @@ foreach ([$ROOT . '/app', $ROOT . '/resources/views', $ROOT . '/routes'] as $tre
 }
 sort($varKeyCalls);
 t_check('[ENV] every variable-key scan tree resolves', $missingVarTrees === [], 'unresolved: ' . implode(' | ', $missingVarTrees));
-t_check('no NEW variable-key __() call appeared', $varKeyCalls === ['500.blade.php:5'], implode(' | ', $varKeyCalls));
+t_check('no variable-key __() call exists', $varKeyCalls === [], implode(' | ', $varKeyCalls));
 
 // LEAD 2026-10-05: en-US joins the MEASURED set.
 //
