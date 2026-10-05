@@ -152,6 +152,68 @@ foreach (['/www/app', '/www/resources/views', '/www/routes'] as $tree) {
 sort($varKeyCalls);
 t_check('no NEW variable-key __() call appeared', $varKeyCalls === ['500.blade.php:5'], implode(' | ', $varKeyCalls));
 
+// LEAD 2026-10-05: en-US joins the MEASURED set.
+//
+// It was excluded from $langs because it is the English source, and that reasoning is sound for
+// the script and echo checks -- key == value is the CORRECT answer for en-US, so the two checks
+// that catch English backflow elsewhere would invert here. But 11 of its entries have a value
+// that DIFFERS from its key, which means en-US is not merely a source listing: it is acting as a
+// dictionary. A file that acts as a dictionary while sitting outside the measured set is the same
+// hole as resources/views, so it gets the same remedy -- inside the fence, with the checks that
+// actually apply to it, and not the two that would invert.
+//
+// Consequence recorded here and deliberately NOT fixed: for those 11, a key missing from ko-KR
+// does not render the KEY, it renders en-US's VALUE, because the translator consults
+// fallback_locale and config/app.php:116 sets that to 'en-US'. So "a miss renders the English
+// key" is not a precise description of this failure mode for those 11 entries. Whether the 11
+// should exist at all is not a test question.
+$enPath = '/www/resources/lang/en-US.json';
+$en = is_file($enPath) ? json_decode(file_get_contents($enPath), true) : null;
+t_check('dictionary loads: en-US', is_array($en), is_array($en) ? count($en) . ' keys' : 'missing or invalid JSON');
+if (is_array($en)) {
+    // The sharp assertion first. 10 of the called keys are IDENTIFIER-style (update.*), where the
+    // key is NOT the English text, so a locale missing one shows the user "update.migration_failed"
+    // verbatim. Nothing asserted this before: the CJK-0 check cannot see a dotted ASCII key, and
+    // the per-locale coverage checks treat it like any other key. These must exist in ALL FIVE.
+    $identKeys = array_values(array_filter($allKeys, fn ($k) => (bool) preg_match('/^[a-z0-9_]+(\.[a-z0-9_]+)+$/', $k)));
+    t_check('identifier-style keys found', count($identKeys) > 0, count($identKeys) . ' keys where the key is not its own English text');
+    foreach (array_merge($langs, ['en-US']) as $l) {
+        $dict = $l === 'en-US' ? $en : $dicts[$l];
+        if (!is_array($dict)) continue;
+        $identMissing = array_values(array_filter($identKeys, fn ($k) => !array_key_exists($k, $dict)));
+        t_check("every identifier-style key is defined in $l", $identMissing === [], implode(' | ', $identMissing));
+    }
+
+    // And the English-sentence keys absent from en-US, which are NOT a hard failure: the key is
+    // the English text, so an absence renders the correct English. Pinned as a count so it cannot
+    // grow unnoticed, rather than red on a harmless state -- a red assertion nobody is fixing gets
+    // switched off, and the same argument that spared 500.blade.php:5 applies here.
+    //
+    // ACCEPTED BOUNDARY (not a limitation to fix in this file).
+    // residual: 35 called keys are absent from en-US. All 35 are English sentences; all 35 are
+    //   present in ko-KR. Uniformity across the five files is the stated goal, so this is work
+    //   with an owner, not a defect with a fix.
+    // owner: RAO-30 card, LEAD. timepoint: measured at 2d75749 + this commit.
+    $enMissing = array_values(array_filter($allKeys, fn ($k) => !array_key_exists($k, $en)));
+    $enMissingIdent = array_values(array_filter($enMissing, fn ($k) => in_array($k, $identKeys, true)));
+    t_check('no identifier-style key is among the en-US absences', $enMissingIdent === [], implode(' | ', $enMissingIdent));
+    t_check('the en-US absence count has not grown past the accepted 35', count($enMissing) <= 35, count($enMissing) . ' of ' . count($allKeys) . ' absent');
+
+    $enBlank = [];
+    foreach ($allKeys as $k) {
+        if (array_key_exists($k, $en) && trim((string) $en[$k]) === '') $enBlank[] = $k;
+    }
+    t_check('en-US has no empty value', $enBlank === [], implode(' | ', $enBlank));
+
+    // NOT an echo check: key == value is correct for the source locale. This counts the entries
+    // where en-US overrides its own key, so a 12th appearing is visible rather than silent.
+    $enOverrides = [];
+    foreach ($en as $k => $v) {
+        if ((string) $v !== (string) $k) $enOverrides[] = $k;
+    }
+    t_check('en-US overrides its own key in exactly the 11 known entries', count($enOverrides) === 11, count($enOverrides) . ' overrides');
+}
+
 // Korean must still read exactly as it did when these messages were raw Korean literals in the
 // controllers (RAO-30 B-2). Any drift here is a user-visible regression for the default locale.
 app()->setLocale('ko-KR');

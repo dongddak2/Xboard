@@ -167,5 +167,6 @@
     "Filtered out :count routes": "차단된 회선 :count개",
     "Subscription expires: :date": "요금제 만료: :date",
     "Days until next reset: :days": "다음 초기화까지 :days일",
-    "Remaining data: :traffic": "남은 데이터: :traffic"
+    "Remaining data: :traffic": "남은 데이터: :traffic",
+    "Server Error": "서버 오류"
 }

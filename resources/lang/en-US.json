@@ -132,5 +132,6 @@
     "update.flag_create_failed": "Failed to create update flag: :error",
     "You must agree to the required terms to sign up": "You must agree to the required terms to sign up",
     "The terms have been updated, please review and agree again": "The terms have been updated, please review and agree again",
-    "Unsupported terms language": "Unsupported terms language"
+    "Unsupported terms language": "Unsupported terms language",
+    "Server Error": "Server Error"
 }

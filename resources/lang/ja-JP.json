@@ -167,5 +167,6 @@
     "Filtered out :count routes": ":count 件の回線を除外しました",
     "Subscription expires: :date": "プラン有効期限: :date",
     "Days until next reset: :days": "次回リセットまで :days 日",
-    "Remaining data: :traffic": "残りデータ量: :traffic"
+    "Remaining data: :traffic": "残りデータ量: :traffic",
+    "Server Error": "サーバーエラー"
 }

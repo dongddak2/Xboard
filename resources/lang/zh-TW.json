@@ -164,5 +164,6 @@
     "Filtered out :count routes": "過濾掉:count條線路",
     "Subscription expires: :date": "套餐到期：:date",
     "Days until next reset: :days": "距離下次重置剩餘：:days 天",
-    "Remaining data: :traffic": "剩餘流量：:traffic"
+    "Remaining data: :traffic": "剩餘流量：:traffic",
+    "Server Error": "伺服器錯誤"
 }
