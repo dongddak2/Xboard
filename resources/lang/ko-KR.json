@@ -163,5 +163,9 @@
     "Session not found": "세션을 찾을 수 없습니다",
     "Failed to create the VPN account": "VPN 계정 생성에 실패했습니다",
     "VPN account not found": "VPN 계정이 없습니다",
-    "Staff permission required": "스태프 권한이 필요합니다"
+    "Staff permission required": "스태프 권한이 필요합니다",
+    "Filtered out :count routes": "차단된 회선 :count개",
+    "Subscription expires: :date": "요금제 만료: :date",
+    "Days until next reset: :days": "다음 초기화까지 :days일",
+    "Remaining data: :traffic": "남은 데이터: :traffic"
 }

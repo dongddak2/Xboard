@@ -148,5 +148,22 @@ foreach ($it as $f) {
 }
 t_check('no producer puts an array in the `error` field', $thirdArgs === [], implode(' | ', $thirdArgs));
 
+// The subscription profile's info rows are `'name' =>` values, not error messages, so no assertion
+// above looks at them -- yet they reach a VPN user's server list directly. Four were Chinese
+// literals (`套餐到期：...`); a status check cannot see that and the __()-key check cannot
+// either, because an untranslated literal produces no key to be missing. So the shape is asserted
+// at the source: every label in setSubscribeInfoToServers goes through __().
+$clientSrc = file_get_contents('/www/app/Http/Controllers/V1/Client/ClientController.php');
+$labelBlock = '';
+if (preg_match('/function setSubscribeInfoToServers.*?\n    \}/s', $clientSrc, $m)) $labelBlock = $m[0];
+t_check('subscription label block found', $labelBlock !== '', strlen($labelBlock) . ' bytes');
+preg_match_all("/'name'\s*=>\s*([^,\n]+)/", $labelBlock, $lm);
+$rawLabels = array_values(array_filter($lm[1], fn ($v) => !str_starts_with(trim($v), '__(')));
+t_check('every subscription label goes through __()', $rawLabels === [], implode(' | ', $rawLabels));
+$cjkLabels = array_values(array_filter($lm[1], fn ($v) => preg_match('/[\x{2E80}-\x{9FFF}\x{AC00}-\x{D7A3}]/u', $v)));
+t_check('no subscription label holds a CJK literal', $cjkLabels === [], implode(' | ', $cjkLabels));
+t_check('all four subscription labels are present', count($lm[1]) === 4, count($lm[1]) . ' labels');
+
+
 echo "\nRESULT " . ($fails === 0 ? 'PASS' : "FAIL ($fails)") . "\n";
 exit($fails === 0 ? 0 : 1);

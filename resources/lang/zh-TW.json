@@ -160,5 +160,9 @@
     "Session not found": "找不到會話",
     "Failed to create the VPN account": "VPN 帳號建立失敗",
     "VPN account not found": "VPN 帳號不存在",
-    "Staff permission required": "無客服權限"
+    "Staff permission required": "無客服權限",
+    "Filtered out :count routes": "過濾掉:count條線路",
+    "Subscription expires: :date": "套餐到期：:date",
+    "Days until next reset: :days": "距離下次重置剩餘：:days 天",
+    "Remaining data: :traffic": "剩餘流量：:traffic"
 }
