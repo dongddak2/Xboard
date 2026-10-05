@@ -99,9 +99,13 @@ foreach ($frozen as $k => $expected) {
 // with no value assertion at all were zh-CN and zh-TW, which is the surface this card is fixing.
 // Measuring a surface with a ruler that has no marks on that surface is not measuring it.
 //
-// These expected strings were generated from the dictionaries as they stand at this commit, so
-// they are a FROZEN BASELINE against drift. They are NOT a review: nobody has checked that the
-// Japanese or Chinese wording is good, only that it stops changing without someone noticing.
+// FROZEN BASELINE, NOT A REVIEW. owner: POST-RC native-speaker review card
+// (assignee human, arranged by Owner). release: that review completes.
+// Until then this guarantees only that the values cannot change silently.
+//
+// These expected strings were generated from the dictionaries as they stand at this commit.
+// Nobody has checked that the Japanese or Chinese wording is good. The owner is named as a
+// CARD and not as a person, because people change and the card remains.
 app()->setLocale('ja-JP');
 $frozen = [
     'Active subscription required to issue VPN connection info' => '有効なサブスクリプションがないため VPN 接続情報を発行できません',
@@ -179,6 +183,14 @@ foreach ($frozen as $k => $expected) {
 // silently do not: the English source pasted in as the translation, an emptied value, and a
 // value written in the wrong script. The last one is this incident's own failure mode -- a
 // Korean user being shown Chinese -- so it gets a check of its own rather than a comment.
+//
+// ACCEPTED BOUNDARY (not a limitation to fix).
+// residual: 125 keys can still be reworded within the correct script.
+// basis: post-D collector, 141 keys. timepoint: 7d0f3d3.
+// covered instead: English backflow / empty / wrong script, across all 141.
+// accepted by: LEAD, 2026-10-05.
+// reason: pinning all 141 would FAIL honest rewording, and an assertion that
+// fails on honest change gets deleted -- a switched-off guard is no guard.
 $scriptOf = [
     'ko-KR' => ['hangul', '/[\x{AC00}-\x{D7A3}]/u'],
     'ja-JP' => ['kana or han', '/[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}]/u'],
