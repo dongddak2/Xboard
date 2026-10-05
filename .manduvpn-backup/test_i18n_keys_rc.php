@@ -10,8 +10,13 @@
 // it needs its own assertion.
 //
 // Run: docker exec -w /www <container> php /www/.manduvpn-backup/test_i18n_keys_rc.php
-require '/www/vendor/autoload.php';
-$app = require '/www/bootstrap/app.php';
+// One overridable root, so the suite can run somewhere other than the container it was written
+// for. LEAD asked whether this was cheap; it is one line plus a mechanical substitution, and it is
+// what turns QA's labelled replica measurement into an actual run of THIS file. Default is
+// unchanged, so nothing about the container invocation changes.
+$ROOT = getenv('MANDUVPN_TEST_ROOT') ?: '/www';
+require $ROOT . '/vendor/autoload.php';
+$app = require $ROOT . '/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 $fails = 0;
@@ -20,7 +25,7 @@ function t_check($n, $ok, $d = '') { global $fails; if (!$ok) $fails++; echo ($o
 $langs = ['ko-KR', 'ja-JP', 'zh-CN', 'zh-TW'];
 $dicts = [];
 foreach ($langs as $l) {
-    $p = '/www/resources/lang/' . $l . '.json';
+    $p = $ROOT . '/resources/lang/' . $l . '.json';
     $dicts[$l] = is_file($p) ? json_decode(file_get_contents($p), true) : null;
     t_check("dictionary loads: $l", is_array($dicts[$l]), is_array($dicts[$l]) ? count($dicts[$l]) . ' keys' : 'missing or invalid JSON');
 }
@@ -34,7 +39,7 @@ foreach ($langs as $l) {
 // string at the centre of the incident was silently absent from all four coverage assertions.
 // A variable key is still not collected; that remains a pattern worth noticing, and there are none.
 $keys = [];
-$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator('/www/app'));
+$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($ROOT . '/app'));
 foreach ($it as $f) {
     if (!$f->isFile() || $f->getExtension() !== 'php') continue;
     // BOTH quote styles. Handler.php:98 is double-quoted and CANNOT be single-quoted -- its
@@ -79,9 +84,15 @@ $scriptOfViews = [
 //
 // A tree the collector does not walk is not a passing surface. The scope of a measurement has to
 // be asserted alongside its result, or the result reads as broader than it is.
+// QA DEMONSTRATED, rather than assumed, what the old `continue` did here: with a tree absent,
+// the per-locale coverage assertion below reports PASS with 0 missing in all four locales, because
+// "every called key is translated" is vacuously true of an empty key set. Two different causes --
+// a real finding and an unresolved path -- produced one colour, and the assertion that went
+// falsely GREEN was the ordered one. A missing collection tree is an assertion failure.
 $viewKeys = [];
-foreach (['/www/resources/views', '/www/routes'] as $tree) {
-    if (!is_dir($tree)) continue;
+$missingTrees = [];
+foreach ([$ROOT . '/resources/views', $ROOT . '/routes'] as $tree) {
+    if (!is_dir($tree)) { $missingTrees[] = $tree; continue; }
     $itv = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tree));
     foreach ($itv as $f) {
         if (!$f->isFile() || $f->getExtension() !== 'php') continue;
@@ -94,6 +105,7 @@ foreach (['/www/resources/views', '/www/routes'] as $tree) {
     }
 }
 $viewKeys = array_keys($viewKeys);
+t_check('[ENV] every view/route collection tree resolves', $missingTrees === [], 'unresolved: ' . implode(' | ', $missingTrees));
 t_check('collector reaches the view/route trees too', count($viewKeys) > 0, count($viewKeys) . ' distinct keys called outside app/');
 
 // The assertion LEAD ordered: per-locale coverage, FAIL on MISS, over the whole called set.
@@ -138,8 +150,9 @@ foreach ($langs as $l) {
 //   design question with an owner, not a test question.
 // owner: RAO-30 card, LEAD. timepoint: measured at 695fa41.
 $varKeyCalls = [];
-foreach (['/www/app', '/www/resources/views', '/www/routes'] as $tree) {
-    if (!is_dir($tree)) continue;
+$missingVarTrees = [];
+foreach ([$ROOT . '/app', $ROOT . '/resources/views', $ROOT . '/routes'] as $tree) {
+    if (!is_dir($tree)) { $missingVarTrees[] = $tree; continue; }
     $itx = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tree));
     foreach ($itx as $f) {
         if (!$f->isFile() || $f->getExtension() !== 'php') continue;
@@ -150,6 +163,7 @@ foreach (['/www/app', '/www/resources/views', '/www/routes'] as $tree) {
     }
 }
 sort($varKeyCalls);
+t_check('[ENV] every variable-key scan tree resolves', $missingVarTrees === [], 'unresolved: ' . implode(' | ', $missingVarTrees));
 t_check('no NEW variable-key __() call appeared', $varKeyCalls === ['500.blade.php:5'], implode(' | ', $varKeyCalls));
 
 // LEAD 2026-10-05: en-US joins the MEASURED set.
@@ -167,7 +181,7 @@ t_check('no NEW variable-key __() call appeared', $varKeyCalls === ['500.blade.p
 // fallback_locale and config/app.php:116 sets that to 'en-US'. So "a miss renders the English
 // key" is not a precise description of this failure mode for those 11 entries. Whether the 11
 // should exist at all is not a test question.
-$enPath = '/www/resources/lang/en-US.json';
+$enPath = $ROOT . '/resources/lang/en-US.json';
 $en = is_file($enPath) ? json_decode(file_get_contents($enPath), true) : null;
 t_check('dictionary loads: en-US', is_array($en), is_array($en) ? count($en) . ' keys' : 'missing or invalid JSON');
 if (is_array($en)) {
@@ -184,20 +198,20 @@ if (is_array($en)) {
         t_check("every identifier-style key is defined in $l", $identMissing === [], implode(' | ', $identMissing));
     }
 
-    // And the English-sentence keys absent from en-US, which are NOT a hard failure: the key is
-    // the English text, so an absence renders the correct English. Pinned as a count so it cannot
-    // grow unnoticed, rather than red on a harmless state -- a red assertion nobody is fixing gets
-    // switched off, and the same argument that spared 500.blade.php:5 applies here.
+    // en-US is NOT in the coverage loop, by LEAD's narrowed ruling, and the reason is sound for
+    // the English-sentence keys: 35 called keys are absent from it, and for English an absent key
+    // renders the key, which IS the correct English. Putting those in the loop would be 35 red
+    // lines with no user-visible harm, and a red assertion on an honest state gets switched off.
     //
-    // ACCEPTED BOUNDARY (not a limitation to fix in this file).
-    // residual: 35 called keys are absent from en-US. All 35 are English sentences; all 35 are
-    //   present in ko-KR. Uniformity across the five files is the stated goal, so this is work
-    //   with an owner, not a defect with a fix.
-    // owner: RAO-30 card, LEAD. timepoint: measured at 2d75749 + this commit.
-    $enMissing = array_values(array_filter($allKeys, fn ($k) => !array_key_exists($k, $en)));
-    $enMissingIdent = array_values(array_filter($enMissing, fn ($k) => in_array($k, $identKeys, true)));
-    t_check('no identifier-style key is among the en-US absences', $enMissingIdent === [], implode(' | ', $enMissingIdent));
-    t_check('the en-US absence count has not grown past the accepted 35', count($enMissing) <= 35, count($enMissing) . ' of ' . count($allKeys) . ' absent');
+    // DO NOT write "the suite catches en-US absences" anywhere: $langs has four entries and en-US
+    // is outside that loop. "absent from all five dictionaries" is a true statement about the
+    // FILES; the red lines will only ever name four.
+    //
+    // The identifier-style check above is deliberately NOT part of that exclusion, and the
+    // measurement is why: all 11 en-US entries whose value differs from its key are CALLED, and
+    // ten of them are those update.* keys. For them "a missing key renders correct English" is
+    // false -- the key is an identifier, so the user would read "update.migration_failed". That is
+    // the one thing en-US still has to be measured for.
 
     $enBlank = [];
     foreach ($allKeys as $k) {
@@ -207,6 +221,13 @@ if (is_array($en)) {
 
     // NOT an echo check: key == value is correct for the source locale. This counts the entries
     // where en-US overrides its own key, so a 12th appearing is visible rather than silent.
+    //
+    // There are two elevens in this file and they are DISJOINT -- intersection zero, measured, not
+    // assumed. This one is the 11 overrides, and every one of them is CALLED: the Handler.php:98
+    // sentence plus the ten update.* keys. The other 11 is en-US keys that nothing calls at all,
+    // all of them key == value, and three of those look like pre-rename wording left behind
+    // ("Plan cycle cannot be empty" against the called "Plan period cannot be empty", and the same
+    // shape twice more). Equal counts, opposite properties; naming them is the only way to tell.
     $enOverrides = [];
     foreach ($en as $k => $v) {
         if ((string) $v !== (string) $k) $enOverrides[] = $k;
@@ -395,10 +416,10 @@ t_check('zh-CN translates instead of echoing English', __('Unsupported protocol'
 // would sign out a logged-in non-staff user, so the second one must never report the session code.
 // Asserted statically because no status-code or translation check can see a wrong identifier.
 $expected = [
-    '/www/app/Http/Middleware/User.php' => ['SESSION_EXPIRED' => 1, 'STAFF_PERMISSION_REQUIRED' => 0],
-    '/www/app/Http/Middleware/Admin.php' => ['SESSION_EXPIRED' => 1, 'STAFF_PERMISSION_REQUIRED' => 0],
+    $ROOT . '/app/Http/Middleware/User.php' => ['SESSION_EXPIRED' => 1, 'STAFF_PERMISSION_REQUIRED' => 0],
+    $ROOT . '/app/Http/Middleware/Admin.php' => ['SESSION_EXPIRED' => 1, 'STAFF_PERMISSION_REQUIRED' => 0],
     // :21 no token + :28 decrypt failure = session; :29 !is_staff = permission.
-    '/www/app/Http/Middleware/Staff.php' => ['SESSION_EXPIRED' => 2, 'STAFF_PERMISSION_REQUIRED' => 1],
+    $ROOT . '/app/Http/Middleware/Staff.php' => ['SESSION_EXPIRED' => 2, 'STAFF_PERMISSION_REQUIRED' => 1],
 ];
 $sources = [];
 foreach ($expected as $file => $counts) {
@@ -416,7 +437,7 @@ foreach ($expected as $file => $counts) {
 // The retraction itself, pinned: the !is_staff guard must sit on its own line with the permission
 // identifier. Written as one assertion on the guard rather than a count, because a future edit that
 // merges the two guards back together would keep every count above correct.
-$staff = $sources['/www/app/Http/Middleware/Staff.php'];
+$staff = $sources[$ROOT . '/app/Http/Middleware/Staff.php'];
 t_check(
     '!is_staff throws the permission code, not the session code',
     (bool) preg_match("/if \(!\\\$user\['is_staff'\]\) throw new ApiException\(__\('Staff permission required'\), 403, 'STAFF_PERMISSION_REQUIRED'\);/", $staff),
@@ -442,7 +463,7 @@ $patterns = [
     '/fail\(\s*\[[^\]]*\]\s*,[^,;]*,\s*(\[|array\(|\$[A-Za-z_]+->(?:errors|all)\()/s',
     '/new ApiException\(\s*(?:__\([^)]*\)|\'[^\']*\'|"[^"]*")\s*,[^,;]*,\s*(\[|array\(|\$[A-Za-z_]+->(?:errors|all)\()/s',
 ];
-$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator('/www/app'));
+$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($ROOT . '/app'));
 foreach ($it as $f) {
     if (!$f->isFile() || $f->getExtension() !== 'php') continue;
     $src = file_get_contents($f->getPathname());
@@ -514,7 +535,7 @@ function mv_args(string $call): array {
 }
 
 $cjkArgs = [];
-$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator('/www/app'));
+$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($ROOT . '/app'));
 foreach ($it as $f) {
     if (!$f->isFile() || $f->getExtension() !== 'php') continue;
     $phpSrc = file_get_contents($f->getPathname());
@@ -535,7 +556,7 @@ t_check('no __() call interpolates a CJK literal through a later argument', $cjk
 // literals (`套餐到期：...`); a status check cannot see that and the __()-key check cannot
 // either, because an untranslated literal produces no key to be missing. So the shape is asserted
 // at the source: every label in setSubscribeInfoToServers goes through __().
-$clientSrc = file_get_contents('/www/app/Http/Controllers/V1/Client/ClientController.php');
+$clientSrc = file_get_contents($ROOT . '/app/Http/Controllers/V1/Client/ClientController.php');
 $labelBlock = '';
 if (preg_match('/function setSubscribeInfoToServers.*?\n    \}/s', $clientSrc, $m)) $labelBlock = $m[0];
 t_check('subscription label block found', $labelBlock !== '', strlen($labelBlock) . ' bytes');
@@ -560,5 +581,21 @@ t_check('no subscription label holds a CJK literal, in ANY argument', $cjkLabels
 t_check('all four subscription labels are present', count($labels) === 4, count($labels) . ' labels');
 
 
+// HOW TO READ A RED LINE. Two different causes used to produce one colour here, so the colour on
+// its own is not evidence -- which assertion is red is.
+//
+//   a line marked [ENV] red  -> the ENVIRONMENT. A collection tree did not resolve, so the key set
+//                               is short or empty. Fix the invocation, then re-read; every
+//                               coverage line above it is meaningless until this one is green,
+//                               because "every called key is translated" is vacuously TRUE of an
+//                               empty key set. That is exactly how the ordered assertion once
+//                               reported PASS with 0 missing in all four locales while the tree
+//                               was absent.
+//   any other line red       -> the FINDING. The code or the dictionaries are in the state the
+//                               assertion names.
+//
+// So: read [ENV] first. If any [ENV] line is red, no conclusion about the dictionaries can be
+// drawn from this run at all.
 echo "\nRESULT " . ($fails === 0 ? 'PASS' : "FAIL ($fails)") . "\n";
+echo "read [ENV] lines first: [ENV] red = the invocation, not the finding; a green coverage line under a red [ENV] line proves nothing\n";
 exit($fails === 0 ? 0 : 1);
