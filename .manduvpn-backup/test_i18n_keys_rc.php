@@ -212,6 +212,24 @@ if (is_array($en)) {
     // ten of them are those update.* keys. For them "a missing key renders correct English" is
     // false -- the key is an identifier, so the user would read "update.migration_failed". That is
     // the one thing en-US still has to be measured for.
+    //
+    // The 35 English-sentence keys absent from en-US are NOT being filled: LEAD's ruling is that
+    // the cost is zero but so is the benefit, 35 duplicated lines would then have to be
+    // maintained, and the dangerous case is already covered by the invariant assertion above.
+    // Uniformity is not a goal in itself. So the number is pinned as an owned figure rather than
+    // either filled or forgotten.
+    //
+    // ACCEPTED BOUNDARY (not a limitation to fix).
+    // residual: 35 called keys are absent from en-US, every one an English sentence, so an
+    //   absence renders the key and the key is the correct English.
+    // not covered: nothing, for the harmful case -- an identifier-style key among them fails the
+    //   assertion above, where the key is not its own fallback.
+    // owner: RAO-30 card, LEAD. accepted by: LEAD, 2026-10-06. timepoint: measured at f045898.
+    // reconciliation: QA measured 36 of these at 2d75749 and this file pins 35 at f045898. Same
+    //   set, two timepoints; the difference is the one key added in between, 'Server Error'.
+    //   36 - 1 = 35, so the two figures are one measurement and not a contradiction.
+    $enMissing = array_values(array_filter($allKeys, fn ($k) => !array_key_exists($k, $en)));
+    t_check('the en-US absence count has not grown past the accepted 35', count($enMissing) <= 35, count($enMissing) . ' of ' . count($allKeys) . ' absent');
 
     $enBlank = [];
     foreach ($allKeys as $k) {
@@ -223,11 +241,25 @@ if (is_array($en)) {
     // where en-US overrides its own key, so a 12th appearing is visible rather than silent.
     //
     // There are two elevens in this file and they are DISJOINT -- intersection zero, measured, not
-    // assumed. This one is the 11 overrides, and every one of them is CALLED: the Handler.php:98
-    // sentence plus the ten update.* keys. The other 11 is en-US keys that nothing calls at all,
-    // all of them key == value, and three of those look like pre-rename wording left behind
-    // ("Plan cycle cannot be empty" against the called "Plan period cannot be empty", and the same
-    // shape twice more). Equal counts, opposite properties; naming them is the only way to tell.
+    // assumed. Equal counts, opposite properties, so only the names tell them apart.
+    //
+    // THESE 11 are the self-overrides, and they are the ONLY keys for which a ko-KR miss emits
+    // en-US's VALUE instead of the key, because the translator falls back to en-US. Every one of
+    // them is CALLED. Named rather than counted, because the count cannot carry that property:
+    //
+    //   Uh-oh, we've had some problems, we're working on it.   <- the Handler.php:98 sentence
+    //   update.already_latest        update.backup_failed      update.cache_clear_failed
+    //   update.code_update_failed    update.failed             update.flag_create_failed
+    //   update.local_newer           update.migration_failed   update.process_running
+    //   update.success
+    //
+    // Ten of those are the identifier-style keys, which is why en-US cannot leave measurement
+    // entirely. They stay as they are: deleting them would change user-visible English.
+    //
+    // The OTHER 11 is a different set -- en-US keys that nothing calls at all, every one of them
+    // key == value, so none can ever be a fallback target. Three are wording left behind by a
+    // rename: "Plan cycle cannot be empty", "Wrong plan cycle" and "This payment cycle cannot be
+    // purchased, please choose another cycle", against the called forms that say "period".
     $enOverrides = [];
     foreach ($en as $k => $v) {
         if ((string) $v !== (string) $k) $enOverrides[] = $k;
