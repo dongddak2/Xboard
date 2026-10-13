@@ -78,6 +78,12 @@ def kind_of(rel):
     name = rel.split('/')[-1]
     if rel == HERE:
         return None                      # the runner is not one of its own checks
+    # DEPTH MUST AGREE WITH DISCOVERY. This rule used to look only at the basename while discovery
+    # globs tests/* and does not recurse, so a committed tests/<subdir>/verify-X.py entered the
+    # MANIFEST and could never be DISCOVERED - a permanent false MISSING for a file the runner was
+    # never going to run. Found by trying to place a file where the convention should reject it.
+    if not rel.startswith('tests/') or rel.count('/') != 1:
+        return None
     if name.endswith('.check.cjs'):
         return 'node'
     if name == 'php_probe.py':
@@ -102,6 +108,16 @@ def self_test():
         ('tests/verify.py', None),       # no dash: deliberately NOT matched, so the rule is exact
         ('tests/helper.py', None),
         ('tests/notes-fixtures.txt', None),
+        # The archived pre-audit instruments. These are HISTORICAL TEXT, not checkers: they contain
+        # the defective needles on purpose, so being run would mean running known-broken predicates
+        # as if they were checks. Their exclusion is ASSERTED here rather than left to the name.
+        ('tests/baseline/pre-audit-verify_quota.py.txt', None),
+        ('tests/baseline/pre-audit-verify_signup.py.txt', None),
+        ('tests/baseline/README.md', None),
+        # ...and the depth rule itself, which is what keeps the manifest and discovery agreeing.
+        ('tests/baseline/verify-anything.py', None),
+        ('tests/sub/php_probe.py', None),
+        ('tests/a/b/premise.check.cjs', None),
     ):
         got = kind_of(rel)
         assert got == want, 'kind_of(%r) = %r, expected %r' % (rel, got, want)
@@ -222,6 +238,8 @@ if __name__ == '__main__':
     if '--self-test' in sys.argv[1:]:
         self_test()
         print('PASS  run-checks convention self-test: the rule matches the four conventional shapes')
-        print('      and rejects the runner itself, a dashless verify.py, a helper and a non-check file')
+        print('      and rejects the runner itself, a dashless verify.py, a helper and a non-check file,')
+        print('      the archived pre-audit instruments under tests/baseline/, and anything below depth')
+        print('      1 - which discovery cannot reach, so the manifest must not claim it either')
         sys.exit(0)
     sys.exit(main())

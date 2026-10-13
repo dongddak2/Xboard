@@ -1,0 +1,193 @@
+# -*- coding: utf-8 -*-
+"""No-PHP-runtime checks on the quota work, on the real files rather than a re-implementation.
+
+These assert properties of the END STATE, not "did I make my edit" - the distinction that caught my own
+defect in the signup task. An end-state assertion can fail on a mistake I did not know I was making.
+
+Deliberately NOT here: no Python re-implementation of the period arithmetic. A replica would test the
+replica. The arithmetic is asserted in tests/server-quota-fixtures.php, which needs a PHP binary.
+Run: python -I verify_quota.py
+"""
+import io, re, sys
+
+sys.path.insert(0, "C:/Users/akamu/AppData/Local/Temp/claude/C--ManduVPN-active-backend-xboard/a369e6eb-2738-4881-8c11-ac101f7d4cbb/scratchpad")
+from phpstrip import strip_comments, docblock_before
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+ROOT = "C:/ManduVPN/active/backend/xboard/"
+SVC = sys.argv[1] if len(sys.argv) > 1 else ROOT + "app/Services/ServerQuotaService.php"
+FIX = ROOT + "tests/server-quota-fixtures.php"
+MIG = ROOT + "database/migrations/2026_10_13_120000_create_manduvpn_server_user_usage.php"
+SRV = ROOT + "app/Services/ServerService.php"
+
+svc = io.open(SVC, encoding="utf-8").read()
+fix = io.open(FIX, encoding="utf-8").read()
+mig = io.open(MIG, encoding="utf-8").read()
+srv = io.open(SRV, encoding="utf-8").read()
+
+fails = []
+
+
+def check(name, actual, expected):
+    if actual != expected:
+        fails.append("FAIL  %s\n        expected: %r\n        actual:   %r" % (name, expected, actual))
+
+
+def method_body(src, name):
+    start = src.index("function %s(" % name)
+    rest = src[start:]
+    nxt = rest.find("\n    public ", 10)
+    nxt2 = rest.find("\n    private ", 10)
+    cut = min([x for x in (nxt, nxt2) if x != -1] or [len(rest)])
+    return rest[:cut]
+
+
+# ---------------------------------------------------------------- 1. the fixture's symbols all resolve
+consts = set(re.findall(r"public const (\w+)", svc))
+methods = set(re.findall(r"public static function (\w+)", svc))
+assert consts and methods, "could not parse the service"
+used_const = set(re.findall(r"Q::([A-Z][A-Z0-9_]*)\b(?!\s*\()", fix))
+used_method = set(re.findall(r"Q::(\w+)\s*\(", fix))
+check("every constant the fixture uses exists", sorted(used_const - consts), [])
+check("every method the fixture calls exists", sorted(used_method - methods), [])
+check("all four statuses are exercised",
+      sorted(c for c in consts if c.startswith("STATUS_")),
+      sorted(c for c in used_const if c.startswith("STATUS_")))
+
+# ---------------------------------------------------------------- 2. the superseded calendar basis is absent
+# A stale rule in the SPEC is a stale document; the same rule in DELIVERED CODE is a defect.
+svc_code = strip_comments(svc)
+mig_code = strip_comments(mig)
+for needle in ("calcResetDayByMonthFirstDay", "calcResetDayByExpireDay", "Asia/Seoul", "Y-m-01", "first day of"):
+    check("the service does not CALL the superseded calendar basis: %s" % needle, needle in svc_code, False)
+    check("the migration does not CALL the superseded calendar basis: %s" % needle, needle in mig_code, False)
+# and the service must still NAME them, so a later reader knows the omission was deliberate
+check("the service names the superseded helpers as deliberately unused",
+      "Deliberately NOT used" in svc and "calcResetDayByMonthFirstDay" in svc, True)
+check("a period is 30 days", "const PERIOD_DAYS = 30;" in svc, True)
+check("a period is 30 days in seconds", "PERIOD_DAYS * 86400" in svc, True)
+check("the fixture asserts the calendar basis is dead", "calendar months are DEAD" in fix, True)
+
+# ---------------------------------------------------------------- 3. raw bytes: no plan multiplier anywhere
+# The whole reason this service exists. If a rate ever appears here the cap is no longer on raw bytes.
+check("the service never reads a plan rate in code", "'rate'" in svc_code, False)
+check("the service never reads server_rate in code", "server_rate" in svc_code, False)
+check("the service never multiplies by a server rate", "* $this->server" in svc_code, False)
+check("the migration says raw bytes", "RAW bytes" in mig, True)
+
+# ---------------------------------------------------------------- 4. the fail-OPEN exception is present and explained
+st = method_body(svc, "state")
+st_doc = docblock_before(svc, "public static function state(")
+check("the exception is documented BESIDE the branch, not elsewhere",
+      "DELIBERATE EXCEPTION TO THE FAIL-CLOSED RULE" in st_doc, True)
+check("the exception warns against being fixed", 'DO NOT "FIX" THIS TO FAIL CLOSED' in st_doc, True)
+check("the exception says which failure is worse", "someone who has PAID" in st_doc, True)
+check("the exception is scoped to quota accounting only", "quota accounting only" in st_doc, True)
+check("the unknown branch reports used as null, not zero", "'used_bytes' => null," in st, True)
+check("no branch of state() ever sets over_limit true for an unmeasured figure",
+      re.search(r"STATUS_UNKNOWN.*?'over_limit' => true", st, re.S) is not None, False)
+check("state() has exactly one over_limit true, in the measured branch", st.count("'over_limit' => true"), 0)
+check("the measured branch computes over_limit rather than hardcoding it", "'over_limit' => $over," in st, True)
+check("the fixture asserts the fail-open direction", "FAILS OPEN" in fix, True)
+
+# ---------------------------------------------------------------- 5. the anchor is never derived on read
+check("the service never queries orders", "v2_order" in svc, False)
+check("the one-time derivation lives in the migration", "v2_order" in mig, True)
+check("the migration says the derivation runs once", "ONE-TIME" in mig, True)
+check("the migration backfills from the completed-order constant",
+      "Order::STATUS_COMPLETED" in mig, True)
+check("the migration does not use a bare status literal", re.search(r"whereIn\('status', \[", mig) is not None, False)
+check("the anchor column name has one owner", svc.count("const ANCHOR_COLUMN") , 1)
+check("the migration uses that same column name", "quota_anchor_at" in mig, True)
+
+# ---------------------------------------------------------------- 6. the key is the entitlement owner, with node_type
+check("the migration keys on user, server, node_type and period",
+      "['user_id', 'server_id', 'node_type', 'period_start_at']" in mig, True)
+check("the migration records why it keys on the leaf, not the reporter",
+      "ENTITLEMENT OWNER, NOT THE REPORTER" in mig, True)
+check("node_type is in the service's usage lookup", "where('node_type', $nodeType)" in svc, True)
+check("the migration explains why node_type is in the key", "unique only within a protocol" in mig, True)
+
+# ---------------------------------------------------------------- 7. enforcement is on the node path, gated on nodeId
+gau = method_body(srv, "getAvailableUsers")
+check("the node user list consults the quota service", "ServerQuotaService::overLimitUserIds(" in gau, True)
+check("enforcement only applies when the asking node is known", "if ($nodeId !== null && $users->isNotEmpty())" in gau, True)
+check("enforcement restricts by rejecting from this node's list only", "->reject(" in gau, True)
+check("the node path records that it is bounded by the report interval", "report\n        // and fetch interval" in gau or "report" in gau, True)
+# the service must not be reachable from the no-node callers, or the device-limit count would change
+check("the quota call sits inside the nodeId guard",
+      gau.index("if ($nodeId !== null && $users->isNotEmpty())") < gau.index("ServerQuotaService::overLimitUserIds("), True)
+
+# ---------------------------------------------------------------- 8. nothing here runs a migration
+for path, src in (("service", svc), ("migration", mig), ("ServerService", srv)):
+    check("%s does not run a migration" % path, "Artisan::call" in src, False)
+check("the migration is additive: it guards the table", "if (!Schema::hasTable('v2_server_user_usage'))" in mig, True)
+check("the migration is additive: it guards the column", "if (!Schema::hasColumn('v2_user', 'quota_anchor_at'))" in mig, True)
+check("the service tolerates the table being absent", "Schema::hasTable(self::USAGE_TABLE)" in svc, True)
+
+# ---------------------------------------------------------------- 9. the admin cap path, and no second column
+check("ConfigSave accepts the cap row",
+      "'manduvpn_server_quota_gb' => 'nullable|array'" in io.open(ROOT + "app/Http/Requests/Admin/ConfigSave.php", encoding="utf-8").read(), True)
+check("ConfigController exposes the cap row",
+      "ServerQuotaService::caps()" in io.open(ROOT + "app/Http/Controllers/V2/Admin/ConfigController.php", encoding="utf-8").read(), True)
+check("the cap key has one owner", svc.count("const KEY_CAPS"), 1)
+check("the migration adds no column for the cap", "quota_gb" in mig, False)
+
+# ---------------------------------------------------------------- 10. the accumulation write path
+JOB = ROOT + "app/Jobs/ServerQuotaUsageJob.php"
+USR = ROOT + "app/Services/UserService.php"
+job = io.open(JOB, encoding="utf-8").read()
+usr = io.open(USR, encoding="utf-8").read()
+job_code = strip_comments(job)
+usr_code = strip_comments(usr)
+
+check("trafficFetch dispatches the quota job", "ServerQuotaUsageJob::dispatch(" in usr_code, True)
+check("the report instant is captured at ingestion", "reportedAt = time();" in usr_code, True)
+check("the job is handed that instant", "protocol, $reportedAt)" in usr_code, True)
+check("the job never computes its own period from the clock", re.search(r"(?<![a-zA-Z_])date\s*\(", job_code) is not None, False)
+check("the job uses the carried instant for the period", "$this->reportedAt" in job_code, True)
+
+# raw bytes: a rate anywhere here would silently change what every configured cap means
+check("the job never applies a plan rate", "rate" in job_code, False)
+check("the job increments raw u", "DB::raw('u + ' . $u)" in job_code, True)
+check("the job increments raw d", "DB::raw('d + ' . $d)" in job_code, True)
+
+# at-least-once was accepted; body-hash dedup was BARRED, because it drops real data
+for banned in ("md5(", "sha1(", "hash(", "getContent()"):
+    check("the job does not deduplicate by hashing: %s" % banned, banned in job_code, False)
+check("the over-count direction is documented in the service", "CAN BE AN OVER-COUNT" in svc, True)
+check("the service names the admin lever as the remedy", "cap lever" in svc, True)
+check("body-hash dedup is recorded as barred in the service", "deduplication is barred" in svc, True)
+check("the job repeats the bar so it is not re-added", "BARRED" in job, True)
+
+# the increment-then-insert shape, which the UNIQUE index makes safe under concurrent reports
+check("the job increments before inserting", job_code.index("->update([") < job_code.index("->insert(["), True)
+check("the job runs inside a retrying transaction", "DB::transaction(" in job_code, True)
+
+# IKEv2 has no byte counters at all, so there must be no branch pretending otherwise
+check("the job has no ikev2 branch", "ikev2" in job_code.lower(), False)
+check("the service records that IKEv2 has no input", "IKEV2 NODES HAVE NO INPUT AT ALL" in svc, True)
+
+# the apply-order dependency on signup, in the file rather than in a message
+check("the migration carries the apply-order constraint", "THE SIGNUP WORK GOES FIRST" in mig, True)
+check("the apply-order constraint states the breakage", "BREAKS THE ADMIN CONFIG PATH" in mig, True)
+
+# ---------------------------------------------------------------- report
+if fails:
+    for f in fails:
+        print(f)
+    print("\n%d failure(s)." % len(fails))
+    sys.exit(1)
+
+print("VERIFY PASS  (no PHP runtime - text and structure checks on the real files)")
+print("  fixture symbols: %d constants, %d methods, all resolve in the service" % (len(used_const), len(used_method)))
+print("  statuses exercised: %s" % ", ".join(sorted(c for c in used_const if c.startswith("STATUS_"))))
+print("  superseded calendar basis absent from BOTH the service and the migration")
+print("  no plan rate anywhere in the service: the cap is on raw bytes")
+print("  fail-OPEN exception present, named, and never sets over_limit on an unmeasured figure")
+print("  anchor derived ONCE in the migration from Order::STATUS_COMPLETED, never on read")
+print("  key = (user, server, node_type, period), attributed to the entitlement owner")
+print("  enforcement on the node credential list, inside the nodeId guard")
+print("  NOT verified here: PHP never executed, no syntax check, no DB, migration not applied,")
+print("  the write path exists but has never run; at-least-once over-count is accepted by ruling")

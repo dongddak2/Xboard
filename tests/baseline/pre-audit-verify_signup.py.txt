@@ -1,0 +1,154 @@
+# -*- coding: utf-8 -*-
+"""Checks that do NOT need a PHP runtime, on the real artifacts rather than on a re-implementation.
+
+1. Every constant and method the fixture calls on the service actually exists in the service. That is the
+   class of error that would otherwise only surface as a fatal at run time, and it is the one thing
+   catchable without a PHP binary.
+2. The service's domain lists equal the table in the Owner's spec markdown, re-parsed from that file.
+3. The three call sites really share the one service, the scoped code key is used on both the send and the
+   verify side, the code is consumed after use, and the out-of-scope password-reset flow is untouched.
+
+Deliberately NOT here: no re-implementation of the policy in Python. A replica would test the replica.
+Run: python -I verify_signup.py
+"""
+import io, re, sys
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+ROOT = "C:/ManduVPN/active/backend/xboard/"
+SERVICE = sys.argv[1] if len(sys.argv) > 1 else ROOT + "app/Services/SignupEmailPolicyService.php"
+FIXTURE = ROOT + "tests/signup-email-policy-fixtures.php"
+SPEC = ("C:/Users/akamu/Documents/Codex/2026-10-12/referenced-chatgpt-conversation-this-is-an/outputs/"
+        "\uB9CC\uB450-\uC774\uBA54\uC77C\uAC00\uC785-\uAD6C\uD604\uBC94\uC704.md")
+
+svc = io.open(SERVICE, encoding="utf-8").read()
+fix = io.open(FIXTURE, encoding="utf-8").read()
+
+fails = []
+
+
+def check(name, actual, expected):
+    if actual != expected:
+        fails.append("FAIL  %s\n        expected: %r\n        actual:   %r" % (name, expected, actual))
+
+
+def method_body(src, name):
+    """The source of one method, so a check cannot be satisfied or broken by an unrelated flow."""
+    start = src.index("public function %s(" % name)
+    rest = src[start:]
+    nxt = rest.find("\n    public function ", 10)
+    return rest if nxt == -1 else rest[:nxt]
+
+
+# ---------------------------------------------------------------- 1. symbols the fixture relies on
+consts = set(re.findall(r"public const (\w+)", svc))
+methods = set(re.findall(r"public static function (\w+)", svc))
+assert consts and methods, "could not parse the service"
+
+used_const = set(re.findall(r"P::([A-Z][A-Z0-9_]*)\b(?!\s*\()", fix))
+used_method = set(re.findall(r"P::(\w+)\s*\(", fix))
+
+check("every constant the fixture uses exists", sorted(used_const - consts), [])
+check("every method the fixture calls exists", sorted(used_method - methods), [])
+check("all machine codes are exercised",
+      sorted(c for c in consts if c.startswith("ERR_")),
+      sorted(c for c in used_const if c.startswith("ERR_")))
+
+# ---- the null defect: an emptied list must CLOSE, so defaults reach only an ABSENT key
+sys.path.insert(0, "C:/Users/akamu/AppData/Local/Temp/claude/C--ManduVPN-active-backend-xboard/a369e6eb-2738-4881-8c11-ac101f7d4cbb/scratchpad")
+from phpstrip import strip_comments
+svc_code = strip_comments(svc)
+check("the domain keys are NOT read through admin_setting", "admin_setting(self::KEY_DOMAINS" in svc_code, False)
+check("no admin_setting call survives in the service at all", "admin_setting(" in svc_code, False)
+check("the service reads the raw setting with an ABSENT sentinel", "self::ABSENT)" in svc_code, True)
+check("only an ABSENT key reaches the Owner defaults", svc_code.count("normalizeDomains(self::DEFAULT_DOMAINS["), 1)
+check("resolveDomains is pure: it takes the stored value", "function resolveDomains(" in svc_code, True)
+check("the fixture pins the stored-null case", "a stored NULL CLOSES the route" in fix, True)
+check("the fixture reproduces the admin_setting mechanism", "adminSettingResolution" in fix, True)
+check("the fixture no longer stubs admin_setting", "function admin_setting" in fix, False)
+
+# ---------------------------------------------------------------- 2. the lists equal the Owner's spec table
+def php_list(name):
+    m = re.search(r"'%s' => \[(.*?)\]" % name, svc, re.S)
+    assert m, name
+    return re.findall(r"'([^']+)'", m.group(1))
+
+
+svc_kr, svc_foreign = php_list("kr"), php_list("foreign")
+
+spec = io.open(SPEC, encoding="utf-8").read()
+rows = re.findall(r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$", spec, re.M)
+DOMAIN = re.compile(r"^[a-z0-9.\-]+\.[a-z]{2,}$")
+spec_kr = [a for a, b in rows if DOMAIN.match(a)]
+spec_foreign = [b for a, b in rows if DOMAIN.match(b)]
+assert spec_kr and spec_foreign, "could not parse the spec table"
+
+check("KR list equals the spec table column 1", svc_kr, spec_kr)
+check("FOREIGN list equals the spec table column 2", svc_foreign, spec_foreign)
+check("the only KR/FOREIGN difference is qq.com and 163.com",
+      sorted(set(svc_foreign) - set(svc_kr)), ["163.com", "qq.com"])
+check("nothing is allowed for KR that FOREIGN forbids", sorted(set(svc_kr) - set(svc_foreign)), [])
+
+# ---------------------------------------------------------------- 3. the three call sites share the service
+sites = {
+    "config (publish)": ("app/Http/Controllers/V1/Guest/CommController.php", "SignupEmailPolicyService::publicPolicy()"),
+    "send-code (gate)": ("app/Http/Controllers/V1/Passport/CommController.php", "SignupEmailPolicyService::validateRequest("),
+    "register (gate)": ("app/Http/Controllers/V1/Passport/AuthController.php", "SignupEmailPolicyService::validateRequest("),
+}
+for label, (path, needle) in sites.items():
+    body = io.open(ROOT + path, encoding="utf-8").read()
+    check("%s calls the service" % label, needle in body, True)
+    check("%s imports the service" % label, "use App\\Services\\SignupEmailPolicyService;" in body, True)
+
+auth = io.open(ROOT + "app/Http/Controllers/V1/Passport/AuthController.php", encoding="utf-8").read()
+reg = method_body(auth, "register")
+send = io.open(ROOT + "app/Http/Controllers/V1/Passport/CommController.php", encoding="utf-8").read()
+
+for label, body in (("send-code", send), ("register", reg)):
+    check("%s uses the scoped code key" % label, "SignupEmailPolicyService::codeCacheKey(" in body, True)
+    check("%s no longer uses the unscoped EMAIL_VERIFY_CODE key" % label,
+          "CacheKey::get('EMAIL_VERIFY_CODE'" in body, False)
+
+# the code must be CONSUMED after a successful signup, or one code stays usable for its whole TTL
+check("register() consumes the scoped code after success",
+      "Cache::forget(SignupEmailPolicyService::codeCacheKey(" in reg, True)
+
+# the code requirement must no longer hang off the global flag inside register()
+check("register() no longer gates the code on email_verify", "admin_setting('email_verify'" in reg, False)
+check("register() requires the code unconditionally", "Email verification code cannot be empty" in reg, True)
+
+# forget() is the password-reset flow and is OUT of scope: it must still use the legacy unscoped key
+fgt = method_body(auth, "forget")
+check("forget() is left untouched on the legacy key", "CacheKey::get('EMAIL_VERIFY_CODE'" in fgt, True)
+check("forget() does not reference the signup policy", "SignupEmailPolicyService" in fgt, False)
+
+# both request validators must demand the region
+for path in ("app/Http/Requests/Passport/AuthRegister.php", "app/Http/Requests/Passport/CommSendEmailVerify.php"):
+    body = io.open(ROOT + path, encoding="utf-8").read()
+    check("%s requires region" % path.rsplit("/", 1)[1], "'region' => 'required|string'" in body, True)
+
+# admin: both keys editable and both exposed, with no new migration
+cfg_save = io.open(ROOT + "app/Http/Requests/Admin/ConfigSave.php", encoding="utf-8").read()
+cfg_get = io.open(ROOT + "app/Http/Controllers/V2/Admin/ConfigController.php", encoding="utf-8").read()
+for region in ("kr", "foreign"):
+    key = "manduvpn_signup_email_domains_%s" % region
+    check("ConfigSave accepts %s" % key, "'%s' => 'nullable|array'" % key in cfg_save, True)
+    check("ConfigController exposes %s" % key, key in cfg_get, True)
+    check("the service owns the key name %s" % key, "'%s'" % key in svc, True)
+
+# ---------------------------------------------------------------- report
+if fails:
+    for f in fails:
+        print(f)
+    print("\n%d failure(s)." % len(fails))
+    sys.exit(1)
+
+print("VERIFY PASS  (no PHP runtime involved - text and structure checks on the real files)")
+print("  fixture symbols: %d constants, %d methods, all resolve in the service" % (len(used_const), len(used_method)))
+print("  machine codes exercised: %s" % ", ".join(sorted(c for c in used_const if c.startswith("ERR_"))))
+print("  KR      = %s" % ", ".join(svc_kr))
+print("  FOREIGN = %s" % ", ".join(svc_foreign))
+print("  both equal the spec table re-parsed from %s" % SPEC.rsplit("/", 1)[1])
+print("  three call sites share the service; scoped code key on send AND verify; code consumed after use")
+print("  register() no longer consults email_verify; forget() left on the legacy key; both validators require region")
+print("  NOT verified here: PHP never executed, no syntax check, no HTTP, no cache, no DB")
