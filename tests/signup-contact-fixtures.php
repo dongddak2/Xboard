@@ -27,6 +27,8 @@ namespace {
     function check(bool $ok, string $label): void { global $checks; if (!$ok) throw new \RuntimeException($label); $checks++; }
     $base = ['real_name' => '홍 길동', 'wechat_id' => 'contact_demo', 'phone_country_code' => '+82', 'phone_number' => '010-1234-5678', 'consent_terms' => true, 'consent_privacy' => true, 'contact_version' => Contact::VERSION];
     check(Contact::validationError($base) === null, 'KR accepted');
+    check(Contact::normalize($base)['marketing_consent'] === 0, 'Marketing defaults to refusal');
+    check(Contact::normalize(array_replace($base, ['consent_marketing' => true]))['marketing_consent'] === 1, 'Explicit marketing choice retained');
     check(Contact::normalize($base)['phone_number'] === '1012345678', 'KR trunk zero normalized');
     check(Contact::validationError(array_replace($base, ['real_name' => "Anne O'Neil", 'phone_country_code' => '+1', 'phone_number' => '202-555-0123'])) === null, 'US accepted');
     check(Contact::validationError(array_replace($base, ['real_name' => '王小明', 'phone_country_code' => '+86', 'phone_number' => '13800000000'])) === null, 'CN accepted');
@@ -44,7 +46,7 @@ namespace {
 
     DB::$pdo = new \PDO('sqlite::memory:');
     DB::$pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-    DB::$pdo->exec('CREATE TABLE v2_user (id INTEGER PRIMARY KEY); CREATE TABLE v2_user_contact (user_id INTEGER PRIMARY KEY, real_name TEXT, wechat_id TEXT, phone_country_code TEXT, phone_number TEXT, consent_version TEXT, consented_at INTEGER, created_at INTEGER)');
+    DB::$pdo->exec('CREATE TABLE v2_user (id INTEGER PRIMARY KEY); CREATE TABLE v2_user_contact (user_id INTEGER PRIMARY KEY, real_name TEXT, wechat_id TEXT, phone_country_code TEXT, phone_number TEXT, consent_version TEXT, marketing_consent INTEGER, consented_at INTEGER, created_at INTEGER)');
     DB::$pdo->beginTransaction(); DB::$pdo->exec('INSERT INTO v2_user (id) VALUES (1)'); Contact::record(1, Contact::normalize($base), 100); DB::$pdo->commit();
     $record = DB::$pdo->query('SELECT * FROM v2_user_contact WHERE user_id=1')->fetch(\PDO::FETCH_ASSOC);
     check($record['phone_number'] === '1012345678' && $record['consent_version'] === Contact::VERSION && $record['consented_at'] === 100, 'Record persists normalized contact and consent');

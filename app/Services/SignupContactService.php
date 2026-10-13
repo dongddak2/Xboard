@@ -25,7 +25,7 @@ class SignupContactService
         if (!empty(self::countries()[$code]['strip_zero']) && substr($phone, 0, 1) === '0') {
             $phone = substr($phone, 1);
         }
-        return ['real_name' => trim($input['real_name']), 'wechat_id' => trim($input['wechat_id']), 'phone_country_code' => $code, 'phone_number' => $phone];
+        return ['real_name' => trim($input['real_name']), 'wechat_id' => trim($input['wechat_id']), 'phone_country_code' => $code, 'phone_number' => $phone, 'marketing_consent' => in_array($input['consent_marketing'] ?? false, [true, 1, '1'], true) ? 1 : 0];
     }
 
     public static function validationError(array $input): ?string
@@ -53,12 +53,15 @@ class SignupContactService
                 return 'CONTACT_CONSENT_REQUIRED';
             }
         }
+        if (isset($input['consent_marketing']) && !in_array($input['consent_marketing'], [true, false, 1, 0, '1', '0'], true)) {
+            return 'CONTACT_CONSENT_REQUIRED';
+        }
         return ($input['contact_version'] ?? null) === self::VERSION ? null : 'CONTACT_VERSION_MISMATCH';
     }
 
     public static function available(): bool
     {
-        return Schema::hasTable('v2_user_contact') && Schema::hasColumns('v2_user_contact', ['user_id', 'real_name', 'wechat_id', 'phone_country_code', 'phone_number', 'consent_version', 'consented_at']);
+        return Schema::hasTable('v2_user_contact') && Schema::hasColumns('v2_user_contact', ['user_id', 'real_name', 'wechat_id', 'phone_country_code', 'phone_number', 'consent_version', 'consented_at', 'created_at', 'marketing_consent']);
     }
 
     public static function publicPolicy(): array
@@ -76,6 +79,7 @@ class SignupContactService
             'phone_country_code' => $contact['phone_country_code'],
             'phone_number' => $contact['phone_number'],
             'consent_version' => self::VERSION,
+            'marketing_consent' => $contact['marketing_consent'],
             'consented_at' => $now,
             'created_at' => $now,
         ]);

@@ -9,7 +9,7 @@ class CreateV2UserContactTable extends Migration
     public function up()
     {
         if (Schema::hasTable('v2_user_contact')) {
-            if (!Schema::hasColumns('v2_user_contact', ['user_id', 'real_name', 'wechat_id', 'phone_country_code', 'phone_number', 'consent_version', 'consented_at', 'created_at'])) {
+            if (!Schema::hasColumns('v2_user_contact', ['user_id', 'real_name', 'wechat_id', 'phone_country_code', 'phone_number', 'consent_version', 'consented_at', 'created_at', 'marketing_consent'])) {
                 throw new \RuntimeException('Existing contact table does not match the required schema. Preserve data and repair the schema before retrying.');
             }
             return;
@@ -21,6 +21,7 @@ class CreateV2UserContactTable extends Migration
             $table->string('phone_country_code', 4);
             $table->string('phone_number', 15);
             $table->string('consent_version', 32);
+            $table->boolean('marketing_consent')->default(false);
             $table->unsignedBigInteger('consented_at');
             $table->unsignedBigInteger('created_at');
         });
