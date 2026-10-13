@@ -24,8 +24,16 @@ Both holes close with one comparison. `git ls-files tests/` is the EXPECTED set,
 and the two must agree:
 
   tracked but NOT discovered  -> a committed checker vanished from the tree        -> FAIL
-  discovered but NOT tracked  -> something untracked is about to execute           -> FAIL
+  discovered but NOT tracked  -> NOT EXECUTED, and the run FAILS                   -> FAIL
   no git, so no manifest      -> the composition of this run cannot be established -> NO VERDICT
+
+The untracked case is PREVENTION rather than detection: the file is dropped from the run set before the
+first subprocess, so it never executes. Reporting it in the summary instead would print the verdict after
+the code had already run - right answer, hazard untouched. A committed checker that vanished is a
+different matter: the remaining committed checks are still safe to run, so they run and the result fails.
+
+The no-manifest case matters more than it looks: a manifest check that silently skipped itself when git
+is unavailable would be no check at all, so its absence is a no-verdict rather than a degraded pass.
 
 Adding a checker still needs no edit here, because a newly committed file appears in BOTH sets at once.
 That is the point of using the repo rather than a hand-kept list.
@@ -143,7 +151,12 @@ def main():
         for rel in vanished:
             composition_failed.append('MISSING  %s is committed but not in the tree - a checker vanished' % rel)
         for rel in untracked:
-            composition_failed.append('UNTRACKED  %s would execute but is not committed - this run is not reproducible' % rel)
+            # PREVENTION, NOT DETECTION. An earlier version reported this in the summary - by which time
+            # the file had already run, so its PASS printed alongside the warning. The verdict was right
+            # and the hazard was untouched: unreviewed code had executed. So the file is removed from the
+            # run set here, BEFORE the first subprocess, and never executed at all.
+            composition_failed.append('UNTRACKED  %s is not committed - NOT EXECUTED, and this run is not reproducible' % rel)
+            discovered.pop(rel, None)
         for line in composition_failed:
             print(line)
         if not composition_failed:
