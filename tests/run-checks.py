@@ -2,30 +2,45 @@
 """ManduVPN: the one entry point that runs every committed check in tests/.
 
   python -I tests/run-checks.py
+  python -I tests/run-checks.py --self-test    # just the convention's own sensitivity
 
-ADDING A CHECKER MUST NOT REQUIRE REMEMBERING TO WIRE IT. So this does not hold a list - a list is the
-thing that gets forgotten. It DISCOVERS checkers by filename, and the naming convention IS the wiring:
+ADDING A CHECKER MUST NOT REQUIRE REMEMBERING TO WIRE IT. So this holds no list - a list is the thing
+that gets forgotten. The naming convention IS the wiring:
 
-  tests/*.check.cjs     a Node checker          -> run with node
-  tests/verify-*.py     a Python verifier       -> run with python
-  tests/php_probe.py    the shared probes       -> run its own self-test
-  tests/*-fixtures.php  a PHP fixture           -> run with php IF a php binary exists
+  tests/*.check.cjs     a Node checker      -> node
+  tests/verify-*.py     a Python verifier   -> python
+  tests/php_probe.py    the shared probes   -> its own self-test
+  tests/*-fixtures.php  a PHP fixture       -> php, IF a php binary exists
 
-Name a new checker to match one of those and it runs here with no edit to this file. Name it something
-else and it will not, which is the one failure mode of discovery - so the convention is stated above and
-this file reports what it found, so a checker that is present but unmatched is visible as absent from the
-list rather than silently skipped.
+THE REPO IS THE MANIFEST, WHICH IS WHY DISCOVERY ALONE IS NOT ENOUGH.
+Discovery by itself cannot tell "every check passed" from "the checks are gone": delete or rename them all
+and a glob finds nothing, so nothing fails. Measured, not supposed - a tests/ directory holding only this
+runner and one file named to the convention that asserts nothing reported 1 passed, exit 0. That is this
+week's shape again: ABSENCE IS SILENT.
+And a glob reads the WORKING TREE, so an untracked file in tests/ would be EXECUTED, not merely
+misleading to someone reading the directory.
 
-WHY NOT CI: there is no test workflow in this repository, and the only workflow present is one we are not
-permitted to touch. This is the human trigger, and it is deliberately NOT filed as an application-day
-item: everything it runs needs no database, no .env and no PHP except the fixtures, so it belongs in the
-set of things that must be green TODAY. Filing a runnable check under a day that may never arrive is how
-a pin becomes a comment.
+Both holes close with one comparison. `git ls-files tests/` is the EXPECTED set, discovery is the RUNNER,
+and the two must agree:
+
+  tracked but NOT discovered  -> a committed checker vanished from the tree        -> FAIL
+  discovered but NOT tracked  -> something untracked is about to execute           -> FAIL
+  no git, so no manifest      -> the composition of this run cannot be established -> NO VERDICT
+
+Adding a checker still needs no edit here, because a newly committed file appears in BOTH sets at once.
+That is the point of using the repo rather than a hand-kept list.
+
+Why untracked-and-executing is a FAIL rather than a note: a run whose composition is not addressable at a
+commit is not reproducible, and a result nobody else can reproduce is testimony rather than evidence. One
+line to soften if that is judged too strict.
 
 Exit codes, and they are not collapsed:
-  0  every discovered check ran and passed
-  1  at least one check FAILED
-  2  nothing failed, but at least one check COULD NOT RUN - no verdict, never reported as a pass
+  0  every discovered check ran and passed, and the set matched the manifest
+  1  a check FAILED, or the set disagreed with the manifest
+  2  nothing failed, but something COULD NOT RUN - no verdict, and never reported as a pass
+
+A child's exit 2 is carried through as NO VERDICT rather than flattened into failure, so a check with its
+own three-state contract keeps it when wrapped.
 """
 import glob
 import os
@@ -34,6 +49,7 @@ import sys
 
 TESTS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(TESTS, '..'))
+HERE = 'tests/' + os.path.basename(os.path.abspath(__file__))
 
 
 def which(cmd):
@@ -45,45 +61,113 @@ def which(cmd):
     return None
 
 
-def discover():
-    """(label, argv, why_not) for every check this convention knows how to run."""
-    found = []
-    node = which('node')
-    php = which('php')
+def kind_of(rel):
+    """Which runner the convention assigns to a tests/ path, or None if it is not a checker.
 
-    for path in sorted(glob.glob(os.path.join(TESTS, '*.check.cjs'))):
-        rel = os.path.relpath(path, ROOT).replace('\\', '/')
-        found.append((rel, [node, path] if node else None, None if node else 'no node binary on PATH'))
+    One function, applied to BOTH the working tree and the git manifest, so the two sets are computed by
+    the same rule and a disagreement means the tree moved rather than the rule.
+    """
+    name = rel.split('/')[-1]
+    if rel == HERE:
+        return None                      # the runner is not one of its own checks
+    if name.endswith('.check.cjs'):
+        return 'node'
+    if name == 'php_probe.py':
+        return 'python'
+    if name.startswith('verify-') and name.endswith('.py'):
+        return 'python'
+    if name.endswith('-fixtures.php'):
+        return 'php'
+    return None
 
-    for path in sorted(glob.glob(os.path.join(TESTS, 'verify-*.py'))):
-        rel = os.path.relpath(path, ROOT).replace('\\', '/')
-        found.append((rel, [sys.executable, '-I', path], None))
 
-    probe = os.path.join(TESTS, 'php_probe.py')
-    if os.path.isfile(probe):
-        rel = os.path.relpath(probe, ROOT).replace('\\', '/')
-        found.append((rel + ' (self-test)', [sys.executable, '-I', probe], None))
+def self_test():
+    """The convention's own sensitivity. A manifest comparison is only as good as the rule behind it."""
+    for rel, want in (
+        ('tests/premise-settings-resolution.check.cjs', 'node'),
+        ('tests/verify-signup-policy.py', 'python'),
+        ('tests/verify-needle-regression.py', 'python'),
+        ('tests/php_probe.py', 'python'),
+        ('tests/signup-email-policy-fixtures.php', 'php'),
+        (HERE, None),                    # must not try to run itself
+        ('tests/README.md', None),
+        ('tests/verify.py', None),       # no dash: deliberately NOT matched, so the rule is exact
+        ('tests/helper.py', None),
+        ('tests/notes-fixtures.txt', None),
+    ):
+        got = kind_of(rel)
+        assert got == want, 'kind_of(%r) = %r, expected %r' % (rel, got, want)
+    return True
 
-    for path in sorted(glob.glob(os.path.join(TESTS, '*-fixtures.php'))):
-        rel = os.path.relpath(path, ROOT).replace('\\', '/')
-        # The fixtures are dependency-free by design, so a bare php binary is enough - but this cell has
-        # none, which is exactly why the other checkers exist. Not having one is "could not run".
-        found.append((rel, [php, path] if php else None, None if php else 'no php binary on PATH'))
 
+def tracked_checks():
+    """The committed tests/ checkers, or None when git cannot answer."""
+    try:
+        r = subprocess.run(['git', 'ls-files', 'tests/'], cwd=ROOT, capture_output=True, text=True)
+    except OSError:
+        return None
+    if r.returncode != 0:
+        return None
+    out = [l.strip().replace('\\', '/') for l in r.stdout.splitlines() if l.strip()]
+    return set(p for p in out if kind_of(p))
+
+
+def discovered_checks():
+    """The checkers present in the working tree right now, by the same rule."""
+    found = {}
+    for path in sorted(glob.glob(os.path.join(TESTS, '*'))):
+        if not os.path.isfile(path):
+            continue
+        rel = 'tests/' + os.path.basename(path)
+        k = kind_of(rel)
+        if k:
+            found[rel] = k
     return found
 
 
 def main():
-    checks = discover()
-    if not checks:
-        print('ABORT  no checks discovered in tests/ - the naming convention in this file says what is picked up')
-        return 2
+    self_test()
 
+    discovered = discovered_checks()
+    tracked = tracked_checks()
+
+    composition_failed = []
+    no_manifest = False
+    if tracked is None:
+        no_manifest = True
+        print('NO MANIFEST  git could not list tests/, so the composition of this run cannot be')
+        print('             established - that is a no-verdict, not a pass')
+    else:
+        vanished = sorted(tracked - set(discovered))
+        untracked = sorted(set(discovered) - tracked)
+        for rel in vanished:
+            composition_failed.append('MISSING  %s is committed but not in the tree - a checker vanished' % rel)
+        for rel in untracked:
+            composition_failed.append('UNTRACKED  %s would execute but is not committed - this run is not reproducible' % rel)
+        for line in composition_failed:
+            print(line)
+        if not composition_failed:
+            print('MANIFEST OK  %d committed checker(s), all present, nothing untracked' % len(tracked))
+
+    if not discovered:
+        print('ABORT  no checks discovered in tests/ - the convention at the top of this file says what counts')
+        return 1 if tracked else 2
+
+    node, php = which('node'), which('php')
     failed, unrun, passed = [], [], []
-    for label, argv, why_not in checks:
+    for rel, kind in sorted(discovered.items()):
+        path = os.path.join(ROOT, rel)
+        if kind == 'node':
+            argv, why = ([node, path], None) if node else (None, 'no node binary on PATH')
+        elif kind == 'php':
+            argv, why = ([php, path], None) if php else (None, 'no php binary on PATH')
+        else:
+            argv, why = [sys.executable, '-I', path], None
+        label = rel + (' (self-test)' if rel.endswith('php_probe.py') else '')
+
         if argv is None:
-            unrun.append((label, why_not))
-            print('NOT RUN  %-52s %s' % (label, why_not))
+            unrun.append(label)
+            print('NOT RUN  %-52s %s' % (label, why))
             continue
         r = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True)
         out = (r.stdout or '') + (r.stderr or '')
@@ -91,27 +175,40 @@ def main():
             passed.append(label)
             print('PASS     %s' % label)
         elif r.returncode == 2:
-            unrun.append((label, 'the check itself gave no verdict (exit 2)'))
+            # Carried through, not flattened: a check with a three-state contract keeps it when wrapped.
+            unrun.append(label)
             print('NO VERDICT  %s' % label)
-            print(''.join('           %s\n' % l for l in out.strip().splitlines()[:12]))
+            for l in out.strip().splitlines()[:12]:
+                print('           %s' % l)
         else:
             failed.append(label)
             print('FAIL     %s  (exit %d)' % (label, r.returncode))
-            print(''.join('           %s\n' % l for l in out.strip().splitlines()[:20]))
+            for l in out.strip().splitlines()[:20]:
+                print('           %s' % l)
 
     print('')
-    print('%d passed, %d failed, %d could not run, of %d discovered' % (
-        len(passed), len(failed), len(unrun), len(checks)))
+    print('%d passed, %d failed, %d could not run, of %d discovered%s' % (
+        len(passed), len(failed), len(unrun), len(discovered),
+        '' if tracked is None else ' (%d committed)' % len(tracked)))
 
-    if failed:
+    if failed or composition_failed:
+        if composition_failed and not failed:
+            print('')
+            print('No check failed, but the set that ran is not the set the repository commits.')
+            print('That is a failure of the run, not of the checks.')
         return 1
-    if unrun:
+    if unrun or no_manifest:
         print('')
-        print('Nothing failed, but the run is NOT a pass: a check that could not run is neither a pass')
-        print('nor a fail. Supply what it needs, or accept that those properties are unverified here.')
+        print('Nothing failed, but the run is NOT a pass: a check that could not run, or a run whose')
+        print('composition could not be established, is neither a pass nor a fail.')
         return 2
     return 0
 
 
 if __name__ == '__main__':
+    if '--self-test' in sys.argv[1:]:
+        self_test()
+        print('PASS  run-checks convention self-test: the rule matches the four conventional shapes')
+        print('      and rejects the runner itself, a dashless verify.py, a helper and a non-check file')
+        sys.exit(0)
     sys.exit(main())
