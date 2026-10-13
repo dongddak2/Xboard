@@ -99,6 +99,27 @@ class ServerService
             ])
             ->get();
 
+        // ManduVPN SERVER-QUOTA-1: a user over THIS node's per-user cap is dropped from THIS node's list,
+        // and from nothing else - their other entitled nodes and every other user are untouched. The cap is
+        // enforced here, on the node's own credential list, because that is the path a node actually reads;
+        // a dashboard-only limit would not be a limit. Enforcement is therefore bounded by the node's report
+        // and fetch interval, and an already-established session is not torn down from here.
+        // Only when the asking node is known: callers that pass no node id (the device-limit count in
+        // UniProxyController@alivelist, the Tidalab controllers) stay byte-identical, exactly as the PP-C1
+        // and HY2-CRED-1 blocks above and below require.
+        // An unmeasurable figure restricts NOBODY - see the fail-open ruling in ServerQuotaService::state().
+        if ($nodeId !== null && $users->isNotEmpty()) {
+            $overIds = ServerQuotaService::overLimitUserIds(
+                $users->pluck('id')->map(fn ($id) => (int) $id)->all(),
+                $nodeId,
+                (string) $nodeType
+            );
+            if ($overIds !== []) {
+                $overIds = array_flip($overIds);
+                $users = $users->reject(fn ($user) => isset($overIds[(int) $user->id]))->values();
+            }
+        }
+
         // ManduVPN HY2-CRED-1: a hysteria node authenticates the SHORT-LIVED credential, not v2_user.uuid. The
         // swap happens here, on the node's own list, because that is where expiry is actually enforced: a user
         // whose credential has lapsed is absent from the list, so the node has no value to accept. Callers that

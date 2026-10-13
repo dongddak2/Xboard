@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\ServerQuotaUsageJob;
 use App\Jobs\StatServerJob;
 use App\Jobs\StatUserJob;
 use App\Jobs\TrafficFetchJob;
@@ -192,10 +193,18 @@ class UserService
         ]);
 
         $timestamp = strtotime(date('Y-m-d'));
-        collect($data)->chunk(1000)->each(function ($chunk) use ($timestamp, $server, $protocol) {
+        // ManduVPN SERVER-QUOTA-1: the instant THIS report arrived, captured here and carried into the
+        // quota job, so a delayed or retried batch is attributed to the period it was REPORTED in rather
+        // than the period it happened to run in. The three jobs below compute their own record date inside
+        // handle() instead, which at a period boundary would hand out a free quota reset.
+        $reportedAt = time();
+        collect($data)->chunk(1000)->each(function ($chunk) use ($timestamp, $reportedAt, $server, $protocol) {
             TrafficFetchJob::dispatch($server, $chunk->toArray(), $protocol, $timestamp);
             StatUserJob::dispatch($server, $chunk->toArray(), $protocol, 'd');
             StatServerJob::dispatch($server, $chunk->toArray(), $protocol, 'd');
+            // Records RAW bytes per (user, node, period) for the per-server cap - the one figure the three
+            // jobs above cannot produce, because they all apply the plan's traffic rate.
+            ServerQuotaUsageJob::dispatch($server, $chunk->toArray(), (string) $protocol, $reportedAt);
         });
     }
 }

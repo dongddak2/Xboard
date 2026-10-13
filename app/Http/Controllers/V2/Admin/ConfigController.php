@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ConfigSave;
 use App\Models\Setting;
 use App\Services\MailService;
+use App\Services\ServerQuotaService;
 use App\Services\SignupEmailPolicyService;
 use App\Services\TelegramService;
 use App\Services\ThemeService;
@@ -164,6 +165,9 @@ class ConfigController extends Controller
                 // ManduVPN signup policy, one editable list per region. Defaults are the Owner's table.
                 'manduvpn_signup_email_domains_kr' => SignupEmailPolicyService::domainsFor('kr'),
                 'manduvpn_signup_email_domains_foreign' => SignupEmailPolicyService::domainsFor('foreign'),
+                // ManduVPN SERVER-QUOTA-1: {server_id: gb}. Normalized on read, so a garbage or zero entry
+                // reads back as absent and that server shows as unlimited rather than as a 0 GB allowance.
+                'manduvpn_server_quota_gb' => ServerQuotaService::caps(),
                 'recaptcha_enable' => (bool) admin_setting('recaptcha_enable', 0),
                 'recaptcha_key' => admin_setting('recaptcha_key', ''),
                 'recaptcha_site_key' => admin_setting('recaptcha_site_key', ''),

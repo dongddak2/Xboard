@@ -90,6 +90,12 @@ class ConfigSave extends FormRequest
         // SignupEmailPolicyService::resolveDomains(), which reads the raw value with an ABSENT sentinel.
         'manduvpn_signup_email_domains_kr' => 'nullable|array',
         'manduvpn_signup_email_domains_foreign' => 'nullable|array',
+        // ManduVPN SERVER-QUOTA-1: per-server, per-user monthly cap in GB as {server_id: gb}. One settings
+        // row, no schema change. An absent or zero entry means that server is UNLIMITED - there is no
+        // default amount, and ServerQuotaService invents none. It is not stored on the server row because
+        // Server::castSettingsWithConfig() rebuilds protocol_settings from the type's configuration and
+        // would silently drop an unknown key on the next admin save (measured in RAO-67).
+        'manduvpn_server_quota_gb' => 'nullable|array',
         'email_gmail_limit_enable' => 'boolean',
         'recaptcha_enable' => 'boolean',
         'recaptcha_key' => '',
