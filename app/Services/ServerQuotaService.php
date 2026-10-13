@@ -201,6 +201,16 @@ class ServerQuotaService
     /** The configured caps, normalized to {"<server_id>": gb}. A malformed row yields no caps at all. */
     public static function caps(): array
     {
+        // THIS DEFAULT MUST STAY EMPTY, AND THE REASON IS A TRAP THAT ARMS ITSELF.
+        // admin_setting() resolves a STORED NULL to the default it is given (Helpers/Functions.php:23 is
+        // `->get($key) ?? $default`). That is harmless here ONLY because the default is [] - absent, stored
+        // null and {} all converge on "no caps", which means unlimited, and there is no Owner default cap
+        // to resurrect. The signup domain keys had the same chain and it WAS a defect there, because their
+        // default was a populated list, so clearing the admin field silently restored it.
+        // So: IF THIS DEFAULT EVER STOPS BEING EMPTY, THIS KEY ACQUIRES THAT DEFECT BY INHERITANCE - no new
+        // mistake required, just a changed default. Whoever gives it a non-empty default must read the raw
+        // value with a sentinel instead, the way SignupEmailPolicyService::resolveDomains() does.
+        // This safety also rests on the no-invented-cap-amounts rule: one rule holding up another.
         $raw = admin_setting(self::KEY_CAPS, []);
         if (is_string($raw)) {
             $decoded = json_decode($raw, true);
