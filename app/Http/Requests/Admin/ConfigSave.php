@@ -82,8 +82,12 @@ class ConfigSave extends FormRequest
         'email_whitelist_enable' => 'boolean',
         'email_whitelist_suffix' => 'nullable|array',
         // ManduVPN signup policy: one list per region, stored in the existing settings rows (no schema
-        // change). An empty list closes that signup route - SignupEmailPolicyService fails closed on it
-        // rather than falling back to the default, so emptying it is a deliberate act, not a reset.
+        // change). `nullable` is deliberate - an admin clearing the field legitimately submits null - and
+        // BOTH null and [] CLOSE that signup route. The route reopens with the Owner's defaults only when
+        // the settings key has never been written at all.
+        // That distinction cannot be made with admin_setting(): Helpers/Functions.php:23 is
+        // `->get($key) ?? $default`, so a stored null would receive the defaults. It is made in
+        // SignupEmailPolicyService::resolveDomains(), which reads the raw value with an ABSENT sentinel.
         'manduvpn_signup_email_domains_kr' => 'nullable|array',
         'manduvpn_signup_email_domains_foreign' => 'nullable|array',
         'email_gmail_limit_enable' => 'boolean',

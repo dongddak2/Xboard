@@ -78,6 +78,14 @@ class SignupEmailPolicyService
         'foreign' => ['naver.com', 'daum.net', 'hanmail.net', 'gmail.com', 'kakao.com', 'nate.com', 'qq.com', '163.com'],
     ];
 
+    /**
+     * Sentinel for "this settings key does not exist at all", which is a DIFFERENT state from a key that
+     * exists and holds null. admin_setting() cannot express the difference - Helpers/Functions.php:23 is
+     * `->get($key) ?? $default`, so a stored null is indistinguishable from an absent key and both receive
+     * the default. That is exactly how an emptied list used to reopen with the Owner's defaults.
+     */
+    public const ABSENT = "\0__absent__";
+
     /** Verification-code scope. Part of the cache key, so codes cannot cross purposes. */
     public const PURPOSE = 'signup';
 
@@ -187,33 +195,76 @@ class SignupEmailPolicyService
 
     // ---------------------------------------------------------------- settings-backed
 
-    /** The configured allow-list for a region, falling back to the Owner's default when nothing is stored. */
+    /**
+     * The effective allow-list, from the RAW stored value. Pure, so the fixtures can drive it with every
+     * value the validator admits - including the null that caused the defect.
+     *
+     * ABSENT (the key was never written) is the ONLY case that falls back to the Owner's defaults, so a
+     * fresh install has a working policy.
+     * Every other value - null, [], a string of nothing, a list of garbage - CLOSES the route. An admin who
+     * cleared the field meant to close it, and handing the defaults back would re-open it behind them.
+     * Do not reintroduce admin_setting($key, DEFAULT) here: its `?? $default` turns a stored null into the
+     * defaults, which is the defect this function exists to prevent.
+     */
+    public static function resolveDomains($stored, string $region): array
+    {
+        if (!isset(self::DEFAULT_DOMAINS[$region])) {
+            return [];
+        }
+        if ($stored === self::ABSENT) {
+            return self::normalizeDomains(self::DEFAULT_DOMAINS[$region]);
+        }
+        return self::normalizeDomains($stored);
+    }
+
+    /**
+     * The raw stored value for a key, or ABSENT when no row exists.
+     * Reads Support\Setting directly rather than through admin_setting(), because that helper's
+     * `?? $default` is what collapses "stored null" into "never configured".
+     */
+    private static function rawSetting(string $key)
+    {
+        return app(\App\Support\Setting::class)->get($key, self::ABSENT);
+    }
+
+    /** The configured allow-list for a region. Only an ABSENT key falls back to the Owner's default. */
     public static function domainsFor(string $region): array
     {
         if (!isset(self::KEY_DOMAINS[$region])) {
             return [];
         }
-        $stored = admin_setting(self::KEY_DOMAINS[$region], self::DEFAULT_DOMAINS[$region]);
-        $domains = self::normalizeDomains($stored);
-        // A stored row that normalizes to nothing is a broken policy, not a reason to use the default: an admin
-        // who emptied the list meant to close the route, and falling back would re-open it behind their back.
-        return $domains;
+        return self::resolveDomains(self::rawSetting(self::KEY_DOMAINS[$region]), $region);
+    }
+
+    /**
+     * The region half of a request, on its own. Pure.
+     * Returns null when the region is usable, or [machine_code, message].
+     */
+    public static function validateRegionOnly($region): ?array
+    {
+        if ($region === null || (is_string($region) && trim($region) === '')) {
+            return [self::ERR_REGION_REQUIRED, __('Signup region is required')];
+        }
+        if (self::normalizeRegion($region) === null) {
+            return [self::ERR_REGION_UNKNOWN, __('Signup region is not supported')];
+        }
+        return null;
     }
 
     /**
      * Resolve region + address in one step for a request handler.
      * Returns null when acceptable, or [machine_code, message].
+     *
+     * Both halves are pure functions - validateRegionOnly() and validateAddress() - so the fixtures drive
+     * the real decisions directly instead of through a settings stub. Only the domain LOOKUP needs the
+     * container, and that is the one line this method adds.
      */
     public static function validateRequest($region, $email): ?array
     {
-        if ($region === null || (is_string($region) && trim($region) === '')) {
-            return [self::ERR_REGION_REQUIRED, __('Signup region is required')];
+        if ($error = self::validateRegionOnly($region)) {
+            return $error;
         }
-        $normalized = self::normalizeRegion($region);
-        if ($normalized === null) {
-            return [self::ERR_REGION_UNKNOWN, __('Signup region is not supported')];
-        }
-        return self::validateAddress($email, self::domainsFor($normalized));
+        return self::validateAddress($email, self::domainsFor(self::normalizeRegion($region)));
     }
 
     /**
@@ -227,6 +278,15 @@ class SignupEmailPolicyService
         foreach (self::REGIONS as $region) {
             $domains[$region] = self::domainsFor($region);
         }
+        return self::publicPolicyFrom($domains);
+    }
+
+    /**
+     * The published shape, from an already-resolved {region: domains} map. Pure, so the fixtures can assert
+     * the `available` flag at the values that matter without a container.
+     */
+    public static function publicPolicyFrom(array $domains): array
+    {
         return [
             'regions' => self::REGIONS,
             'email_domains' => $domains,

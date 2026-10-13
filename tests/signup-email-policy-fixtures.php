@@ -6,23 +6,32 @@
  *   php tests/signup-email-policy-fixtures.php
  *
  * ZERO DEPENDENCIES ON PURPOSE. No composer, no vendor/, no .env, no database, no cache, no app container.
- * It requires two source files and stubs the two global helpers they call, so it runs on a bare PHP binary.
- * That is deliberate: this repository has no test suite and no vendor directory, so a fixture that needed
- * either could not be run by anyone.
+ * Two source requires and one stubbed global, so it runs on a bare PHP binary. This repository has no test
+ * suite and no vendor directory, so a fixture that needed either could not be run by anyone.
  *
  * NOT RUN BY THE AUTHOR. There is no PHP binary in the cell these files were written in, so this script has
  * never executed. Whoever has PHP runs it; a failing line names the case.
  *
- * WHAT IS OUT OF REACH HERE, so nobody reads a pass as more than it is:
- *   - code EXPIRY is a cache TTL, not a decision in this service. The fixtures prove an expired code cannot
- *     verify by proving the key is absent-or-different, not by waiting 300 seconds.
+ * THERE IS NO LONGER AN admin_setting() STUB, AND THAT IS THE POINT.
+ * The first version of this file stubbed it as `array_key_exists($k, $store) ? $store[$k] : $default`,
+ * which returns a stored null AS null. The real helper is `->get($key) ?? $default`
+ * (Helpers/Functions.php:23), which turns a stored null INTO the default. The two agreed on every value
+ * except null - and null is the one value the validator admits - so the fixture passed green while an
+ * emptied admin list silently reopened with the Owner's defaults. QA caught it; the stub did not.
+ * So the decisions now live in PURE functions that take their data as arguments, the fixture drives those
+ * directly, and section L below reproduces the real `??` resolution explicitly to show what it does.
+ * A stub must be checked against the real resolver at the boundary values the validator admits; the
+ * cheapest way to satisfy that is to have no stub in the decision path at all.
+ *
+ * WHAT IS OUT OF REACH HERE:
+ *   - code TTL expiry is cache behaviour, not a decision this service makes. Absence and mismatch are
+ *     proven instead.
  *   - the HTTP layer (validator rules, status codes, response envelope) is not exercised.
- *   - admin_setting() is stubbed, so this says nothing about how settings are persisted.
+ *   - the container-backed shell - domainsFor(), validateRequest(), publicPolicy() - needs Laravel. Their
+ *     pure cores (resolveDomains, validateRegionOnly, validateAddress, publicPolicyFrom) are what is tested.
  */
 
 declare(strict_types=1);
-
-// ---------------------------------------------------------------- stubs for the two global helpers
 
 /** Translation helper: the fixtures assert on machine codes, so returning the key is enough. */
 if (!function_exists('__')) {
@@ -31,17 +40,6 @@ if (!function_exists('__')) {
         return $key;
     }
 }
-
-/** Settings storage, swapped per case by $GLOBALS['fixture_settings']. */
-if (!function_exists('admin_setting')) {
-    function admin_setting($key = null, $default = null)
-    {
-        $store = $GLOBALS['fixture_settings'] ?? [];
-        return array_key_exists($key, $store) ? $store[$key] : $default;
-    }
-}
-
-$GLOBALS['fixture_settings'] = [];
 
 require __DIR__ . '/../app/Utils/CacheKey.php';
 require __DIR__ . '/../app/Services/SignupEmailPolicyService.php';
@@ -146,37 +144,23 @@ check('non-string entries are dropped', P::normalizeDomains([123, null, ['naver.
 check('a non-list policy normalizes to empty', P::normalizeDomains(null), []);
 check('garbage normalizing to empty then accepts nothing', codeOf(P::validateAddress('user@naver.com', P::normalizeDomains(['*.naver.com']))), P::ERR_POLICY_UNAVAILABLE);
 
-// ---------------------------------------------------------------- H. settings-backed resolution
+// ---------------------------------------------------------------- H. direct-request bypass: the region half
 
-$GLOBALS['fixture_settings'] = [];
-check('no stored row falls back to the KR default', P::domainsFor('kr'), $KR);
-check('no stored row falls back to the FOREIGN default', P::domainsFor('foreign'), $FOREIGN);
-check('an unknown region resolves to no list', P::domainsFor('us'), []);
+check('a request with no region is refused', codeOf(P::validateRegionOnly(null)), P::ERR_REGION_REQUIRED);
+check('a request with a blank region is refused', codeOf(P::validateRegionOnly('   ')), P::ERR_REGION_REQUIRED);
+check('a request with an invented region is refused', codeOf(P::validateRegionOnly('jp')), P::ERR_REGION_UNKNOWN);
+check('a usable region passes the region half', P::validateRegionOnly('kr'), null);
+check('a usable foreign region passes too', P::validateRegionOnly('foreign'), null);
 
-$GLOBALS['fixture_settings'] = ['manduvpn_signup_email_domains_kr' => []];
-check('an EMPTIED KR list closes the KR route, it does not reset to default', P::domainsFor('kr'), []);
-check('the emptied KR route then refuses an otherwise valid address', codeOf(P::validateRequest('kr', 'user@naver.com')), P::ERR_POLICY_UNAVAILABLE);
-check('emptying KR leaves FOREIGN alone', P::domainsFor('foreign'), $FOREIGN);
+// end to end, composed exactly as validateRequest() composes it
+check('a KR request for qq.com is refused end to end',
+    codeOf(P::validateAddress('user@qq.com', P::resolveDomains(P::ABSENT, 'kr'))), P::ERR_DOMAIN_NOT_ALLOWED);
+check('a FOREIGN request for qq.com is accepted end to end',
+    codeOf(P::validateAddress('user@qq.com', P::resolveDomains(P::ABSENT, 'foreign'))), null);
+check('a forged domain is refused end to end',
+    codeOf(P::validateAddress('user@naver.com.attacker.net', P::resolveDomains(P::ABSENT, 'kr'))), P::ERR_DOMAIN_NOT_ALLOWED);
 
-$GLOBALS['fixture_settings'] = ['manduvpn_signup_email_domains_kr' => ['*.naver.com', 'naver']];
-check('a KR list of only garbage closes the route', P::domainsFor('kr'), []);
-
-$GLOBALS['fixture_settings'] = ['manduvpn_signup_email_domains_kr' => ['NAVER.COM', 'naver.com', ' kakao.com ']];
-check('a stored KR list is normalized on read', P::domainsFor('kr'), ['naver.com', 'kakao.com']);
-check('a narrowed KR list rejects a domain it dropped', codeOf(P::validateRequest('kr', 'user@gmail.com')), P::ERR_DOMAIN_NOT_ALLOWED);
-check('a narrowed KR list still accepts what it kept', codeOf(P::validateRequest('kr', 'user@kakao.com')), null);
-
-// ---------------------------------------------------------------- I. direct-request bypass
-
-$GLOBALS['fixture_settings'] = [];
-check('a request with no region is refused', codeOf(P::validateRequest(null, 'user@naver.com')), P::ERR_REGION_REQUIRED);
-check('a request with a blank region is refused', codeOf(P::validateRequest('   ', 'user@naver.com')), P::ERR_REGION_REQUIRED);
-check('a request with an invented region is refused', codeOf(P::validateRequest('jp', 'user@naver.com')), P::ERR_REGION_UNKNOWN);
-check('a KR request for qq.com is refused end to end', codeOf(P::validateRequest('kr', 'user@qq.com')), P::ERR_DOMAIN_NOT_ALLOWED);
-check('a FOREIGN request for qq.com is accepted end to end', codeOf(P::validateRequest('foreign', 'user@qq.com')), null);
-check('a forged domain is refused end to end', codeOf(P::validateRequest('kr', 'user@naver.com.attacker.net')), P::ERR_DOMAIN_NOT_ALLOWED);
-
-// ---------------------------------------------------------------- J. the code is scoped: address and region
+// ---------------------------------------------------------------- I. the code is scoped: address and region
 
 $krKey = P::codeCacheKey('user@naver.com', 'kr');
 $foreignKey = P::codeCacheKey('user@naver.com', 'foreign');
@@ -190,41 +174,63 @@ check('the key is scoped by purpose', strpos($krKey, P::PURPOSE . ':kr:') !== fa
 check('the key is NOT the legacy unscoped key', $krKey === App\Utils\CacheKey::get('EMAIL_VERIFY_CODE', 'user@naver.com'), false);
 
 // A send whose response arrives after the user edited the address: the code was stored under the OLD
-// address's key, so it cannot verify the new one. This is the whole mechanism, asserted as key inequality
-// because no cache is involved in the decision.
+// address's key, so it cannot verify the new one.
 check('a code stored for the old address cannot key the new one',
     P::codeCacheKey('old@naver.com', 'kr') === P::codeCacheKey('new@naver.com', 'kr'), false);
 check('a code stored for the KR flow cannot key a FOREIGN registration',
     P::codeCacheKey('user@gmail.com', 'kr') === P::codeCacheKey('user@gmail.com', 'foreign'), false);
 
-// ---------------------------------------------------------------- J2. the global flags are irrelevant
+// ---------------------------------------------------------------- J. the global flags are irrelevant
 // THE CASE THAT PROVES THE INVARIANT RATHER THAN THE CONFIGURATION. Live has email_verify = 0 and
-// email_whitelist_enable = 0, which is exactly why signup needed no code and accepted any domain. Pin
-// both flags OFF explicitly and assert the policy still enforces: if this service ever starts consulting
-// them, these four lines fail, and a silently inert gate in production is what they catch.
-$GLOBALS['fixture_settings'] = ['email_verify' => 0, 'email_whitelist_enable' => 0];
-check('with email_verify=0 the KR policy still rejects qq.com',
-    codeOf(P::validateRequest('kr', 'user@qq.com')), P::ERR_DOMAIN_NOT_ALLOWED);
-check('with the whitelist flag off a forged domain is still rejected',
-    codeOf(P::validateRequest('kr', 'user@naver.com.attacker.net')), P::ERR_DOMAIN_NOT_ALLOWED);
-check('with both flags off a missing region is still refused',
-    codeOf(P::validateRequest(null, 'user@naver.com')), P::ERR_REGION_REQUIRED);
-check('with both flags off the published policy still requires the code',
-    P::publicPolicy()['email_code_required'], true);
+// email_whitelist_enable = 0, which is exactly why signup needed no code and accepted any domain. The
+// policy must not consult either, so there is nothing to set here - and that is the assertion: the service
+// resolves a verdict from its ARGUMENTS alone, with no settings read in the decision path at all.
+check('the KR verdict comes from the domain list, not from any flag',
+    codeOf(P::validateAddress('user@qq.com', $KR)), P::ERR_DOMAIN_NOT_ALLOWED);
+check('the published policy requires the code unconditionally',
+    P::publicPolicyFrom(['kr' => $KR, 'foreign' => $FOREIGN])['email_code_required'], true);
 
 // ---------------------------------------------------------------- K. published policy
 
-$GLOBALS['fixture_settings'] = [];
-$policy = P::publicPolicy();
+$policy = P::publicPolicyFrom(['kr' => $KR, 'foreign' => $FOREIGN]);
 check('the published policy lists both regions', $policy['regions'], ['kr', 'foreign']);
 check('the published policy carries the KR domains', $policy['email_domains']['kr'], $KR);
 check('the published policy carries the FOREIGN domains', $policy['email_domains']['foreign'], $FOREIGN);
-check('the published policy states the code is required', $policy['email_code_required'], true);
 check('the published policy states phone signup is preparing', $policy['phone_status'], 'preparing');
-check('the published policy is available with the defaults', $policy['available'], true);
+check('the published policy is available with both lists populated', $policy['available'], true);
+check('an unusable list makes the published policy UNAVAILABLE',
+    P::publicPolicyFrom(['kr' => [], 'foreign' => $FOREIGN])['available'], false);
+check('an unusable FOREIGN list does the same',
+    P::publicPolicyFrom(['kr' => $KR, 'foreign' => []])['available'], false);
 
-$GLOBALS['fixture_settings'] = ['manduvpn_signup_email_domains_kr' => []];
-check('an unusable list makes the published policy UNAVAILABLE', P::publicPolicy()['available'], false);
+// ---------------------------------------------------------------- L. THE NULL DEFECT, as a regression test
+// An emptied admin list used to REOPEN the route with the Owner's defaults, because it reaches the resolver
+// as null and the real admin_setting() is `->get($key) ?? $default`. These are the boundary values the
+// validator admits, which is where a stub must be checked and where this one was not.
+
+check('an ABSENT key falls back to the Owner defaults, so a fresh install works', P::resolveDomains(P::ABSENT, 'kr'), $KR);
+check('an ABSENT foreign key falls back too', P::resolveDomains(P::ABSENT, 'foreign'), $FOREIGN);
+check('a stored NULL CLOSES the route - this is the defect', P::resolveDomains(null, 'kr'), []);
+check('a stored empty array closes the route', P::resolveDomains([], 'kr'), []);
+check('a stored empty string closes the route', P::resolveDomains('', 'kr'), []);
+check('a stored list of garbage closes the route', P::resolveDomains(['*.naver.com'], 'kr'), []);
+check('a stored scalar closes the route', P::resolveDomains(0, 'kr'), []);
+check('an unknown region resolves to no list', P::resolveDomains(P::ABSENT, 'us'), []);
+check('a narrowed stored list is honoured rather than widened',
+    P::resolveDomains(['naver.com', 'KAKAO.COM '], 'kr'), ['naver.com', 'kakao.com']);
+check('the closed KR route then refuses an otherwise valid address',
+    codeOf(P::validateAddress('user@naver.com', P::resolveDomains(null, 'kr'))), P::ERR_POLICY_UNAVAILABLE);
+check('closing KR does not touch FOREIGN', P::resolveDomains(P::ABSENT, 'foreign'), $FOREIGN);
+
+// The mechanism itself, reproduced rather than described: this is what admin_setting() does, and it is why
+// these two keys are not read through it. If anyone reintroduces that call, this pair explains the damage.
+$adminSettingResolution = static fn ($stored, $default) => $stored ?? $default;
+check('the admin_setting resolution turns a stored NULL into the defaults',
+    $adminSettingResolution(null, P::DEFAULT_DOMAINS['kr']), $KR);
+check('so reading these keys through it would REOPEN an emptied list',
+    P::normalizeDomains($adminSettingResolution(null, P::DEFAULT_DOMAINS['kr'])) === [], false);
+check('whereas the resolver this service uses keeps it closed',
+    P::resolveDomains(null, 'kr') === [], true);
 
 // ---------------------------------------------------------------- report
 
@@ -239,5 +245,7 @@ if ($fail) {
 printf("PASS  %d checks, 0 failures\n", $pass);
 printf("      Owner table: KR = %s\n", implode(', ', $KR));
 printf("                   FOREIGN = %s\n", implode(', ', $FOREIGN));
-printf("      not covered here: code TTL expiry, the HTTP layer, settings persistence\n");
+printf("      an ABSENT key defaults; a stored null/[]/garbage CLOSES the route\n");
+printf("      no admin_setting stub in the decision path, by design\n");
+printf("      not covered here: code TTL expiry, the HTTP layer, the container-backed shell\n");
 exit(0);
