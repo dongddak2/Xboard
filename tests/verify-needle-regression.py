@@ -1,136 +1,172 @@
 # -*- coding: utf-8 -*-
-"""ManduVPN: before-and-after for the ten absence needles, so "we closed ten silent holes" is a
-measurement rather than a claim.
+"""ManduVPN: before-and-after for the absence needles, PER AXIS, so the count is a measurement.
 
   python -I tests/verify-needle-regression.py
 
-WHY THIS FILE EXISTS. The fixed needles were shown to catch MD5( and ADMIN_SETTING (, which proves the
-NEW needles fire. It does not prove the old ones missed them, and those are different facts:
+WHY THIS FILE EXISTS. Showing that the fixed needles catch MD5( proves the NEW needles fire. It does not
+prove the old ones missed it, and those are different facts:
 
-    A FIX IS DEMONSTRATED BY THE OLD VERSION FAILING TO CATCH WHAT THE NEW VERSION CATCHES,
-    NOT BY THE NEW VERSION CATCHING IT.
+    A fix is demonstrated by the OLD version failing to catch what the NEW version catches,
+    not by the new version catching it.
 
-Without the before-run, "we closed ten silent holes" and "we tightened ten needles that were already
-adequate" produce identical evidence. So each case below runs BOTH predicates against THE SAME subject.
+Without the before-run, "we closed N silent holes" and "we tightened N needles that were already
+adequate" produce identical evidence. So every case runs BOTH predicates against THE SAME subject.
 
-PROVENANCE OF THE "OLD" SIDE - it is real code, not a reconstruction. These are the literal expressions
-the pre-audit verifiers used, which still exist verbatim in the session scratchpad they were written in:
+AND THE COUNT ALONE IS NOT THE ANSWER. Two axes can make an absence needle miss a real call - CASE,
+because PHP function names are case-insensitive, and WHITESPACE, because a space before the paren is
+legal. Different needles were holed on different axes, so "N spellings missed" collapses two facts. This
+reports, per needle, WHICH AXIS WAS ACTUALLY LIVE:
 
-    verify_quota.py:157   for banned in ("md5(", "sha1(", "hash(", "getContent()"):
-    verify_quota.py:74    check(..., "'rate'" in svc_code, False)
-    verify_quota.py:152   check(..., "rate" in job_code, False)
-    verify_signup.py:62   check(..., "admin_setting(" in svc_code, False)
+    case only        the old needle already tolerated whitespace, so only capitals got through
+    whitespace only  the old needle was case-insensitive, so only the space got through
+    both axes        the old needle was a plain substring test and neither got through
+    none             the old needle was already adequate; the change tightened nothing
 
-They are reproduced here as one-line lambdas so both sides can be run side by side. That reproduction is
-itself a copy, and a copy is not a reference - so each one is quoted above with its file and line, and the
-expressions are short enough to compare by eye. The alternative, committing the pre-audit verifiers purely
-to be run once, would put a known-defective instrument in the deliverable.
+That distinction came from QA, who diffed the two checker blobs and found the old .cjs dependant needle
+already had \\s*\\( - so for that needle the live hole was case, not whitespace. Verified here against the
+blob itself rather than taken on report.
 
-Two directions are measured, because the needles were wrong in both:
-  SILENT  - a real violation the old needle missed, which reported a PASS. Ten of these.
-  LOUD    - a benign look-alike the old needle flagged, which reported a FAIL. One of these.
-  AGREE   - a look-alike both versions reject. One of these, kept because it is what made the needle LOOK
-            over-broad without ever matching it.
-Only the silent ones are dangerous; the loud ones are included because fixing the appearance of
-over-breadth is exactly how the silence was built, and the fix had to do both without trading one for
-the other.
+PROVENANCE OF THE OLD SIDE. Two different instruments are measured, and they differ in how well the
+"before" can be established:
+
+  PYTHON  the pre-audit verifiers were never committed, so there is no old blob to run. Their predicates
+          are quoted below as one-line lambdas, with the file and line they came from:
+              verify_quota.py:157   for banned in ("md5(", "sha1(", "hash(", "getContent()"):
+              verify_quota.py:74    check(..., "'rate'" in svc_code, False)
+              verify_signup.py:62   check(..., "admin_setting(" in svc_code, False)
+          Reproducing them is itself a copy, and a copy is not a reference. The quotes are one line each
+          so they can be compared by eye, and committing a known-defective instrument purely to run it
+          once would be worse.
+  CJS     the old needle IS committed, at blob 8accaa52 (commit d6f43e5), and its text is reproduced from
+          that blob: /admin_setting\\s*\\(/ with no i flag. For this one the "before" is addressable.
 """
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from php_probe import calls, reads_key, self_test
 
-# --- the OLD predicates, as the pre-audit verifiers wrote them (see PROVENANCE above) ---
-old_md5 = lambda code: "md5(" in code
-old_sha1 = lambda code: "sha1(" in code
-old_hash = lambda code: "hash(" in code
-old_get_content = lambda code: "getContent()" in code
-old_admin_setting = lambda code: "admin_setting(" in code
-old_rate_quoted = lambda code: "'rate'" in code
+# --- OLD predicates, as the pre-audit instruments wrote them (see PROVENANCE above) ---
+# PYTHON side: plain substring tests, no case or whitespace tolerance.
+old_py = {
+    'md5': lambda c: "md5(" in c,
+    'sha1': lambda c: "sha1(" in c,
+    'hash': lambda c: "hash(" in c,
+    'getContent': lambda c: "getContent()" in c,
+    'admin_setting': lambda c: "admin_setting(" in c,
+}
+# CJS side: reproduced from blob 8accaa52 - whitespace tolerant, case sensitive.
+old_cjs_admin_setting = lambda c: re.search(r'admin_setting\s*\(', c) is not None
 
-# --- the NEW predicates, from the committed shared module ---
-new_md5 = lambda code: calls(code, "md5")
-new_sha1 = lambda code: calls(code, "sha1")
-new_hash = lambda code: calls(code, "hash")
-new_get_content = lambda code: calls(code, "getContent")
-new_admin_setting = lambda code: calls(code, "admin_setting")
-new_rate_quoted = lambda code: reads_key(code, "rate")
+NEW = {name: (lambda n: (lambda c: calls(c, n)))(name) for name in old_py}
 
-# (label, subject, old, new, direction)
-#   SILENT: a real violation. old must MISS it (returning a pass) and new must CATCH it.
-#   LOUD:   a benign look-alike. old CATCHES it (a false fail) and new must REJECT it.
-CASES = [
-    ("MD5( uppercase",              "$x = MD5($data);",                 old_md5,           new_md5,           "SILENT"),
-    ("md5 ( space before paren",    "$x = md5 ($data);",                old_md5,           new_md5,           "SILENT"),
-    ("SHA1( uppercase",             "$x = SHA1($data);",                old_sha1,          new_sha1,          "SILENT"),
-    ("sha1 ( space before paren",   "$x = sha1 ($data);",               old_sha1,          new_sha1,          "SILENT"),
-    ("HASH( uppercase",             "$x = HASH($data);",                old_hash,          new_hash,          "SILENT"),
-    ("hash ( space before paren",   "$x = hash ($data);",               old_hash,          new_hash,          "SILENT"),
-    ("getContent ( space",          "$b = $request->getContent ();",    old_get_content,   new_get_content,   "SILENT"),
-    ("GetContent() mixed case",     "$b = $request->GetContent();",     old_get_content,   new_get_content,   "SILENT"),
-    ("admin_setting ( space",       "$v = admin_setting ($key);",       old_admin_setting, new_admin_setting, "SILENT"),
-    ("ADMIN_SETTING( uppercase",    "$v = ADMIN_SETTING($key);",        old_admin_setting, new_admin_setting, "SILENT"),
-    ('server["rate"] double quotes', '$r = $server["rate"];',           old_rate_quoted,   new_rate_quoted,   "SILENT"),
-    ("password_hash( benign",       "$h = password_hash($p, PASSWORD_DEFAULT);", old_hash, new_hash,          "LOUD"),
-    ("hash_equals( benign",         "if (hash_equals($a, $b)) {}",      old_hash,          new_hash,          "AGREE"),
-]
+# The realistic argument list per function, because the old getContent needle looked for EMPTY parens -
+# "getContent()" - so handing it an argument would report it as missing even the plain call. That is a
+# third axis (argument presence) and it is not live for a function that takes none, but using the wrong
+# call shape would have manufactured a defect that is not there.
+ARGS = {
+    'md5': '$d',
+    'sha1': '$d',
+    'hash': '$d',
+    'getContent': '',          # takes no arguments; the old needle required the empty pair
+    'admin_setting': '$k',
+}
 
-# The one that must survive all that narrowing: narrowing to silence a false fail is how a false pass is
-# built, so the plain call must still be caught by the new predicate.
-SURVIVES = ("hash( plain, must still be caught", "$x = hash($data);", new_hash)
+
+# One call, written four ways: the two axes crossed.
+def spellings(name):
+    a = ARGS[name]
+    return {
+        'plain': '$x = %s(%s);' % (name, a),
+        'UPPER': '$x = %s(%s);' % (name.upper(), a),
+        'spaced': '$x = %s (%s);' % (name, a),
+        'UPPER+sp': '$x = %s (%s);' % (name.upper(), a),
+    }
+
+
+def live_axes(old, name):
+    """Which axes the old predicate let through, measured rather than assumed."""
+    s = spellings(name)
+    caught = {k: old(v) for k, v in s.items()}
+    if not caught['plain']:
+        return 'BROKEN: missed the plain call', caught
+    missed_case = not caught['UPPER']
+    missed_space = not caught['spaced']
+    if missed_case and missed_space:
+        return 'both axes', caught
+    if missed_case:
+        return 'case only', caught
+    if missed_space:
+        return 'whitespace only', caught
+    return 'none - already adequate', caught
+
 
 self_test()
 
 fails = []
-silent_closed = 0
-loud_fixed = 0
-agreed = False
+rows = []
 
-print("%-32s %-8s %-10s %-10s" % ("case", "kind", "old", "new"))
-print("-" * 64)
-for label, subject, old, new, kind in CASES:
-    o, n = old(subject), new(subject)
-    if kind == "SILENT":
-        # old must MISS (False = reported a pass) and new must CATCH (True = reports a fail)
-        ok = (o is False and n is True)
-        if ok:
-            silent_closed += 1
-        verdict = "miss -> catch" if ok else "NOT DEMONSTRATED"
-    elif kind == "LOUD":
-        # old must CATCH a benign string (a false fail) and new must REJECT it
-        ok = (o is True and n is False)
-        if ok:
-            loud_fixed += 1
-        verdict = "false fail -> clean" if ok else "NOT DEMONSTRATED"
-    else:
-        # AGREE: both are already correct to reject this. Recorded because it is the look-alike that made
-        # hash( LOOK over-broad without ever actually matching it - the appearance that invited the wrong
-        # narrowing. Keeping it stops someone re-adding it as evidence of over-breadth.
-        ok = (o is False and n is False)
-        agreed = ok
-        verdict = "both reject (never a false fail)" if ok else "NOT DEMONSTRATED"
-    if not ok:
-        fails.append("FAIL  %s (%s): old=%r new=%r - expected %s" % (label, kind, o, n, verdict))
-    print("%-32s %-8s %-10s %-10s %s" % (label, kind, o, n, verdict))
+CASES = [('%s() - python verifier' % n, old_py[n], NEW[n], n) for n in
+         ('md5', 'sha1', 'hash', 'getContent', 'admin_setting')]
+CASES.append(('admin_setting() - cjs checker', old_cjs_admin_setting, NEW['admin_setting'], 'admin_setting'))
 
-label, subject, pred = SURVIVES
-if pred(subject) is not True:
-    fails.append("FAIL  %s: the new predicate was narrowed until it missed the real call" % label)
-print("%-32s %-8s %-10s %-10s %s" % ("hash( plain", "GUARD", "-", pred(subject), "must stay caught"))
+print('%-34s %-24s %s' % ('needle (instrument)', 'live axis, measured', 'old caught / new caught'))
+print('-' * 96)
+for label, old, new, name in CASES:
+    axis, caught = live_axes(old, name)
+    s = spellings(name)
+    detail = []
+    for k in ('plain', 'UPPER', 'spaced', 'UPPER+sp'):
+        o, n = old(s[k]), new(s[k])
+        detail.append('%s %s/%s' % (k, 'Y' if o else '-', 'Y' if n else '-'))
+        # whatever the old predicate did, the NEW one must catch every spelling of a real call
+        if not n:
+            fails.append('FAIL  %s: the new predicate missed %r' % (label, s[k]))
+    rows.append((label, axis))
+    print('%-34s %-24s %s' % (label, axis, '  '.join(detail)))
 
-print("")
+# the double-quoted index, which is an axis of its own: quote style
+idx = {'single': "$r = $server['rate'];", 'double': '$r = $server["rate"];'}
+old_rate = lambda c: "'rate'" in c
+print('')
+print('%-34s %-24s %s' % ('server[rate] - python verifier', 'quote style only',
+                          '  '.join('%s %s/%s' % (k, 'Y' if old_rate(v) else '-',
+                                                  'Y' if reads_key(v, 'rate') else '-')
+                                    for k, v in idx.items())))
+for k, v in idx.items():
+    if not reads_key(v, 'rate'):
+        fails.append('FAIL  server[rate]: the new predicate missed the %s-quoted form' % k)
+if old_rate(idx['double']):
+    fails.append('FAIL  server[rate]: the old predicate was supposed to miss the double-quoted form')
+rows.append(('server[rate] - python verifier', 'quote style only'))
+
+# The guard: narrowing to silence a false fail is how a false pass is built, so the plain call must stay
+# caught, and the benign look-alike must stay rejected.
+if not calls('$x = hash($d);', 'hash'):
+    fails.append('FAIL  the new hash predicate was narrowed until it missed the real call')
+if calls('$h = password_hash($p);', 'hash'):
+    fails.append('FAIL  the new hash predicate flags password_hash, which is not a hash() call')
+if calls('if (hash_equals($a,$b)) {}', 'hash'):
+    fails.append('FAIL  the new hash predicate flags hash_equals, which is not a hash() call')
+
+print('')
 if fails:
     for f in fails:
         print(f)
-    print("\n%d case(s) not demonstrated." % len(fails))
+    print('\n%d case(s) not demonstrated.' % len(fails))
     sys.exit(1)
 
-print("DEMONSTRATED  %d silent holes closed (old reported a PASS, new reports a FAIL)" % silent_closed)
-print("              %d loud false-fail cleaned up, without losing the real call" % loud_fixed)
-print("              hash_equals( recorded as a look-alike BOTH versions reject: it made hash( look")
-print("              over-broad without ever matching it, which is the appearance that invited the")
-print("              wrong narrowing")
-print("              both predicates ran against the same subject in each case, which is what makes")
-print("              this a measurement rather than a claim about the old needles")
+by_axis = {}
+for _, axis in rows:
+    by_axis[axis] = by_axis.get(axis, 0) + 1
+print('MEASURED  %d needles, and the live axis differs between them:' % len(rows))
+for axis in sorted(by_axis):
+    print('            %-26s %d needle(s)' % (axis, by_axis[axis]))
+print('')
+print('          So the honest statement is not a single hole count. The python needles were plain')
+print('          substring tests and were holed on BOTH axes; the cjs needle already tolerated')
+print('          whitespace and was holed on CASE alone; the index needle was holed on quote style.')
+print('          Every spelling of a real call is caught by the new predicates, and password_hash')
+print('          and hash_equals are still not treated as hash() calls.')
 sys.exit(0)
