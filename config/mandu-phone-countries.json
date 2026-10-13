@@ -1,826 +1,2062 @@
 {
   "+1": {
     "region": "US",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "미국",
+      "zh": "美国",
+      "en": "United States",
+      "ja": "アメリカ合衆国"
+    }
   },
   "+7": {
     "region": "RU",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "러시아",
+      "zh": "俄罗斯",
+      "en": "Russia",
+      "ja": "ロシア"
+    }
   },
   "+20": {
     "region": "EG",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "이집트",
+      "zh": "埃及",
+      "en": "Egypt",
+      "ja": "エジプト"
+    }
   },
   "+27": {
     "region": "ZA",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "남아프리카",
+      "zh": "南非",
+      "en": "South Africa",
+      "ja": "南アフリカ"
+    }
   },
   "+30": {
     "region": "GR",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "그리스",
+      "zh": "希腊",
+      "en": "Greece",
+      "ja": "ギリシャ"
+    }
   },
   "+31": {
     "region": "NL",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "네덜란드",
+      "zh": "荷兰",
+      "en": "Netherlands",
+      "ja": "オランダ"
+    }
   },
   "+32": {
     "region": "BE",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "벨기에",
+      "zh": "比利时",
+      "en": "Belgium",
+      "ja": "ベルギー"
+    }
   },
   "+33": {
     "region": "FR",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "프랑스",
+      "zh": "法国",
+      "en": "France",
+      "ja": "フランス"
+    }
   },
   "+34": {
     "region": "ES",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "스페인",
+      "zh": "西班牙",
+      "en": "Spain",
+      "ja": "スペイン"
+    }
   },
   "+36": {
     "region": "HU",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "헝가리",
+      "zh": "匈牙利",
+      "en": "Hungary",
+      "ja": "ハンガリー"
+    }
   },
   "+39": {
     "region": "IT",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "이탈리아",
+      "zh": "意大利",
+      "en": "Italy",
+      "ja": "イタリア"
+    }
   },
   "+40": {
     "region": "RO",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "루마니아",
+      "zh": "罗马尼亚",
+      "en": "Romania",
+      "ja": "ルーマニア"
+    }
   },
   "+41": {
     "region": "CH",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "스위스",
+      "zh": "瑞士",
+      "en": "Switzerland",
+      "ja": "スイス"
+    }
   },
   "+43": {
     "region": "AT",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "오스트리아",
+      "zh": "奥地利",
+      "en": "Austria",
+      "ja": "オーストリア"
+    }
   },
   "+44": {
     "region": "GB",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "영국",
+      "zh": "英国",
+      "en": "United Kingdom",
+      "ja": "イギリス"
+    }
   },
   "+45": {
     "region": "DK",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "덴마크",
+      "zh": "丹麦",
+      "en": "Denmark",
+      "ja": "デンマーク"
+    }
   },
   "+46": {
     "region": "SE",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "스웨덴",
+      "zh": "瑞典",
+      "en": "Sweden",
+      "ja": "スウェーデン"
+    }
   },
   "+47": {
     "region": "NO",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "노르웨이",
+      "zh": "挪威",
+      "en": "Norway",
+      "ja": "ノルウェー"
+    }
   },
   "+48": {
     "region": "PL",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "폴란드",
+      "zh": "波兰",
+      "en": "Poland",
+      "ja": "ポーランド"
+    }
   },
   "+49": {
     "region": "DE",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "독일",
+      "zh": "德国",
+      "en": "Germany",
+      "ja": "ドイツ"
+    }
   },
   "+51": {
     "region": "PE",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "페루",
+      "zh": "秘鲁",
+      "en": "Peru",
+      "ja": "ペルー"
+    }
   },
   "+52": {
     "region": "MX",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "멕시코",
+      "zh": "墨西哥",
+      "en": "Mexico",
+      "ja": "メキシコ"
+    }
   },
   "+53": {
     "region": "CU",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "쿠바",
+      "zh": "古巴",
+      "en": "Cuba",
+      "ja": "キューバ"
+    }
   },
   "+54": {
     "region": "AR",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "아르헨티나",
+      "zh": "阿根廷",
+      "en": "Argentina",
+      "ja": "アルゼンチン"
+    }
   },
   "+55": {
     "region": "BR",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "브라질",
+      "zh": "巴西",
+      "en": "Brazil",
+      "ja": "ブラジル"
+    }
   },
   "+56": {
     "region": "CL",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "칠레",
+      "zh": "智利",
+      "en": "Chile",
+      "ja": "チリ"
+    }
   },
   "+57": {
     "region": "CO",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "콜롬비아",
+      "zh": "哥伦比亚",
+      "en": "Colombia",
+      "ja": "コロンビア"
+    }
   },
   "+58": {
     "region": "VE",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "베네수엘라",
+      "zh": "委内瑞拉",
+      "en": "Venezuela",
+      "ja": "ベネズエラ"
+    }
   },
   "+60": {
     "region": "MY",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "말레이시아",
+      "zh": "马来西亚",
+      "en": "Malaysia",
+      "ja": "マレーシア"
+    }
   },
   "+61": {
     "region": "AU",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "오스트레일리아",
+      "zh": "澳大利亚",
+      "en": "Australia",
+      "ja": "オーストラリア"
+    }
   },
   "+62": {
     "region": "ID",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "인도네시아",
+      "zh": "印度尼西亚",
+      "en": "Indonesia",
+      "ja": "インドネシア"
+    }
   },
   "+63": {
     "region": "PH",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "필리핀",
+      "zh": "菲律宾",
+      "en": "Philippines",
+      "ja": "フィリピン"
+    }
   },
   "+64": {
     "region": "NZ",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "뉴질랜드",
+      "zh": "新西兰",
+      "en": "New Zealand",
+      "ja": "ニュージーランド"
+    }
   },
   "+65": {
     "region": "SG",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "싱가포르",
+      "zh": "新加坡",
+      "en": "Singapore",
+      "ja": "シンガポール"
+    }
   },
   "+66": {
     "region": "TH",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "태국",
+      "zh": "泰国",
+      "en": "Thailand",
+      "ja": "タイ"
+    }
   },
   "+81": {
     "region": "JP",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "일본",
+      "zh": "日本",
+      "en": "Japan",
+      "ja": "日本"
+    }
   },
   "+82": {
     "region": "KR",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "대한민국",
+      "zh": "韩国",
+      "en": "South Korea",
+      "ja": "韓国"
+    }
   },
   "+84": {
     "region": "VN",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "베트남",
+      "zh": "越南",
+      "en": "Vietnam",
+      "ja": "ベトナム"
+    }
   },
   "+86": {
     "region": "CN",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "중국",
+      "zh": "中国",
+      "en": "China",
+      "ja": "中国"
+    }
   },
   "+90": {
     "region": "TR",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "튀르키예",
+      "zh": "土耳其",
+      "en": "Türkiye",
+      "ja": "トルコ"
+    }
   },
   "+91": {
     "region": "IN",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "인도",
+      "zh": "印度",
+      "en": "India",
+      "ja": "インド"
+    }
   },
   "+92": {
     "region": "PK",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "파키스탄",
+      "zh": "巴基斯坦",
+      "en": "Pakistan",
+      "ja": "パキスタン"
+    }
   },
   "+93": {
     "region": "AF",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "아프가니스탄",
+      "zh": "阿富汗",
+      "en": "Afghanistan",
+      "ja": "アフガニスタン"
+    }
   },
   "+94": {
     "region": "LK",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "스리랑카",
+      "zh": "斯里兰卡",
+      "en": "Sri Lanka",
+      "ja": "スリランカ"
+    }
   },
   "+95": {
     "region": "MM",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "미얀마",
+      "zh": "缅甸",
+      "en": "Myanmar (Burma)",
+      "ja": "ミャンマー (ビルマ)"
+    }
   },
   "+98": {
     "region": "IR",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "이란",
+      "zh": "伊朗",
+      "en": "Iran",
+      "ja": "イラン"
+    }
   },
   "+211": {
     "region": "SS",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "남수단",
+      "zh": "南苏丹",
+      "en": "South Sudan",
+      "ja": "南スーダン"
+    }
   },
   "+212": {
     "region": "MA",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "모로코",
+      "zh": "摩洛哥",
+      "en": "Morocco",
+      "ja": "モロッコ"
+    }
   },
   "+213": {
     "region": "DZ",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "알제리",
+      "zh": "阿尔及利亚",
+      "en": "Algeria",
+      "ja": "アルジェリア"
+    }
   },
   "+216": {
     "region": "TN",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "튀니지",
+      "zh": "突尼斯",
+      "en": "Tunisia",
+      "ja": "チュニジア"
+    }
   },
   "+218": {
     "region": "LY",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "리비아",
+      "zh": "利比亚",
+      "en": "Libya",
+      "ja": "リビア"
+    }
   },
   "+220": {
     "region": "GM",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "감비아",
+      "zh": "冈比亚",
+      "en": "Gambia",
+      "ja": "ガンビア"
+    }
   },
   "+221": {
     "region": "SN",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "세네갈",
+      "zh": "塞内加尔",
+      "en": "Senegal",
+      "ja": "セネガル"
+    }
   },
   "+222": {
     "region": "MR",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "모리타니",
+      "zh": "毛里塔尼亚",
+      "en": "Mauritania",
+      "ja": "モーリタニア"
+    }
   },
   "+223": {
     "region": "ML",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "말리",
+      "zh": "马里",
+      "en": "Mali",
+      "ja": "マリ"
+    }
   },
   "+224": {
     "region": "GN",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "기니",
+      "zh": "几内亚",
+      "en": "Guinea",
+      "ja": "ギニア"
+    }
   },
   "+225": {
     "region": "CI",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "코트디부아르",
+      "zh": "科特迪瓦",
+      "en": "Côte d’Ivoire",
+      "ja": "コートジボワール"
+    }
   },
   "+226": {
     "region": "BF",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "부르키나파소",
+      "zh": "布基纳法索",
+      "en": "Burkina Faso",
+      "ja": "ブルキナファソ"
+    }
   },
   "+227": {
     "region": "NE",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "니제르",
+      "zh": "尼日尔",
+      "en": "Niger",
+      "ja": "ニジェール"
+    }
   },
   "+228": {
     "region": "TG",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "토고",
+      "zh": "多哥",
+      "en": "Togo",
+      "ja": "トーゴ"
+    }
   },
   "+229": {
     "region": "BJ",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "베냉",
+      "zh": "贝宁",
+      "en": "Benin",
+      "ja": "ベナン"
+    }
   },
   "+230": {
     "region": "MU",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "모리셔스",
+      "zh": "毛里求斯",
+      "en": "Mauritius",
+      "ja": "モーリシャス"
+    }
   },
   "+231": {
     "region": "LR",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "라이베리아",
+      "zh": "利比里亚",
+      "en": "Liberia",
+      "ja": "リベリア"
+    }
   },
   "+232": {
     "region": "SL",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "시에라리온",
+      "zh": "塞拉利昂",
+      "en": "Sierra Leone",
+      "ja": "シエラレオネ"
+    }
   },
   "+233": {
     "region": "GH",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "가나",
+      "zh": "加纳",
+      "en": "Ghana",
+      "ja": "ガーナ"
+    }
   },
   "+234": {
     "region": "NG",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "나이지리아",
+      "zh": "尼日利亚",
+      "en": "Nigeria",
+      "ja": "ナイジェリア"
+    }
   },
   "+235": {
     "region": "TD",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "차드",
+      "zh": "乍得",
+      "en": "Chad",
+      "ja": "チャド"
+    }
   },
   "+236": {
     "region": "CF",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "중앙 아프리카 공화국",
+      "zh": "中非共和国",
+      "en": "Central African Republic",
+      "ja": "中央アフリカ共和国"
+    }
   },
   "+237": {
     "region": "CM",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "카메룬",
+      "zh": "喀麦隆",
+      "en": "Cameroon",
+      "ja": "カメルーン"
+    }
   },
   "+238": {
     "region": "CV",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "카보베르데",
+      "zh": "佛得角",
+      "en": "Cape Verde",
+      "ja": "カーボベルデ"
+    }
   },
   "+239": {
     "region": "ST",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "상투메 프린시페",
+      "zh": "圣多美和普林西比",
+      "en": "São Tomé & Príncipe",
+      "ja": "サントメ・プリンシペ"
+    }
   },
   "+240": {
     "region": "GQ",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "적도 기니",
+      "zh": "赤道几内亚",
+      "en": "Equatorial Guinea",
+      "ja": "赤道ギニア"
+    }
   },
   "+241": {
     "region": "GA",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "가봉",
+      "zh": "加蓬",
+      "en": "Gabon",
+      "ja": "ガボン"
+    }
   },
   "+242": {
     "region": "CG",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "콩고-브라자빌",
+      "zh": "刚果（布）",
+      "en": "Congo - Brazzaville",
+      "ja": "コンゴ共和国(ブラザビル)"
+    }
   },
   "+243": {
     "region": "CD",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "콩고-킨샤사",
+      "zh": "刚果（金）",
+      "en": "Congo - Kinshasa",
+      "ja": "コンゴ民主共和国(キンシャサ)"
+    }
   },
   "+244": {
     "region": "AO",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "앙골라",
+      "zh": "安哥拉",
+      "en": "Angola",
+      "ja": "アンゴラ"
+    }
   },
   "+245": {
     "region": "GW",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "기니비사우",
+      "zh": "几内亚比绍",
+      "en": "Guinea-Bissau",
+      "ja": "ギニアビサウ"
+    }
   },
   "+246": {
     "region": "IO",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "영국령 인도양 지역",
+      "zh": "英属印度洋领地",
+      "en": "British Indian Ocean Territory",
+      "ja": "英領インド洋地域"
+    }
   },
   "+247": {
     "region": "AC",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "어센션섬",
+      "zh": "阿森松岛",
+      "en": "Ascension Island",
+      "ja": "アセンション島"
+    }
   },
   "+248": {
     "region": "SC",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "세이셸",
+      "zh": "塞舌尔",
+      "en": "Seychelles",
+      "ja": "セーシェル"
+    }
   },
   "+249": {
     "region": "SD",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "수단",
+      "zh": "苏丹",
+      "en": "Sudan",
+      "ja": "スーダン"
+    }
   },
   "+250": {
     "region": "RW",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "르완다",
+      "zh": "卢旺达",
+      "en": "Rwanda",
+      "ja": "ルワンダ"
+    }
   },
   "+251": {
     "region": "ET",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "에티오피아",
+      "zh": "埃塞俄比亚",
+      "en": "Ethiopia",
+      "ja": "エチオピア"
+    }
   },
   "+252": {
     "region": "SO",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "소말리아",
+      "zh": "索马里",
+      "en": "Somalia",
+      "ja": "ソマリア"
+    }
   },
   "+253": {
     "region": "DJ",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "지부티",
+      "zh": "吉布提",
+      "en": "Djibouti",
+      "ja": "ジブチ"
+    }
   },
   "+254": {
     "region": "KE",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "케냐",
+      "zh": "肯尼亚",
+      "en": "Kenya",
+      "ja": "ケニア"
+    }
   },
   "+255": {
     "region": "TZ",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "탄자니아",
+      "zh": "坦桑尼亚",
+      "en": "Tanzania",
+      "ja": "タンザニア"
+    }
   },
   "+256": {
     "region": "UG",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "우간다",
+      "zh": "乌干达",
+      "en": "Uganda",
+      "ja": "ウガンダ"
+    }
   },
   "+257": {
     "region": "BI",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "부룬디",
+      "zh": "布隆迪",
+      "en": "Burundi",
+      "ja": "ブルンジ"
+    }
   },
   "+258": {
     "region": "MZ",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "모잠비크",
+      "zh": "莫桑比克",
+      "en": "Mozambique",
+      "ja": "モザンビーク"
+    }
   },
   "+260": {
     "region": "ZM",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "잠비아",
+      "zh": "赞比亚",
+      "en": "Zambia",
+      "ja": "ザンビア"
+    }
   },
   "+261": {
     "region": "MG",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "마다가스카르",
+      "zh": "马达加斯加",
+      "en": "Madagascar",
+      "ja": "マダガスカル"
+    }
   },
   "+262": {
     "region": "RE",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "레위니옹",
+      "zh": "留尼汪",
+      "en": "Réunion",
+      "ja": "レユニオン"
+    }
   },
   "+263": {
     "region": "ZW",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "짐바브웨",
+      "zh": "津巴布韦",
+      "en": "Zimbabwe",
+      "ja": "ジンバブエ"
+    }
   },
   "+264": {
     "region": "NA",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "나미비아",
+      "zh": "纳米比亚",
+      "en": "Namibia",
+      "ja": "ナミビア"
+    }
   },
   "+265": {
     "region": "MW",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "말라위",
+      "zh": "马拉维",
+      "en": "Malawi",
+      "ja": "マラウイ"
+    }
   },
   "+266": {
     "region": "LS",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "레소토",
+      "zh": "莱索托",
+      "en": "Lesotho",
+      "ja": "レソト"
+    }
   },
   "+267": {
     "region": "BW",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "보츠와나",
+      "zh": "博茨瓦纳",
+      "en": "Botswana",
+      "ja": "ボツワナ"
+    }
   },
   "+268": {
     "region": "SZ",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "에스와티니",
+      "zh": "斯威士兰",
+      "en": "Eswatini",
+      "ja": "エスワティニ"
+    }
   },
   "+269": {
     "region": "KM",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "코모로",
+      "zh": "科摩罗",
+      "en": "Comoros",
+      "ja": "コモロ"
+    }
   },
   "+290": {
     "region": "SH",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "세인트헬레나",
+      "zh": "圣赫勒拿",
+      "en": "St. Helena",
+      "ja": "セントヘレナ"
+    }
   },
   "+291": {
     "region": "ER",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "에리트리아",
+      "zh": "厄立特里亚",
+      "en": "Eritrea",
+      "ja": "エリトリア"
+    }
   },
   "+297": {
     "region": "AW",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "아루바",
+      "zh": "阿鲁巴",
+      "en": "Aruba",
+      "ja": "アルバ"
+    }
   },
   "+298": {
     "region": "FO",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "페로 제도",
+      "zh": "法罗群岛",
+      "en": "Faroe Islands",
+      "ja": "フェロー諸島"
+    }
   },
   "+299": {
     "region": "GL",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "그린란드",
+      "zh": "格陵兰",
+      "en": "Greenland",
+      "ja": "グリーンランド"
+    }
   },
   "+350": {
     "region": "GI",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "지브롤터",
+      "zh": "直布罗陀",
+      "en": "Gibraltar",
+      "ja": "ジブラルタル"
+    }
   },
   "+351": {
     "region": "PT",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "포르투갈",
+      "zh": "葡萄牙",
+      "en": "Portugal",
+      "ja": "ポルトガル"
+    }
   },
   "+352": {
     "region": "LU",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "룩셈부르크",
+      "zh": "卢森堡",
+      "en": "Luxembourg",
+      "ja": "ルクセンブルク"
+    }
   },
   "+353": {
     "region": "IE",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "아일랜드",
+      "zh": "爱尔兰",
+      "en": "Ireland",
+      "ja": "アイルランド"
+    }
   },
   "+354": {
     "region": "IS",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "아이슬란드",
+      "zh": "冰岛",
+      "en": "Iceland",
+      "ja": "アイスランド"
+    }
   },
   "+355": {
     "region": "AL",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "알바니아",
+      "zh": "阿尔巴尼亚",
+      "en": "Albania",
+      "ja": "アルバニア"
+    }
   },
   "+356": {
     "region": "MT",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "몰타",
+      "zh": "马耳他",
+      "en": "Malta",
+      "ja": "マルタ"
+    }
   },
   "+357": {
     "region": "CY",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "키프로스",
+      "zh": "塞浦路斯",
+      "en": "Cyprus",
+      "ja": "キプロス"
+    }
   },
   "+358": {
     "region": "FI",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "핀란드",
+      "zh": "芬兰",
+      "en": "Finland",
+      "ja": "フィンランド"
+    }
   },
   "+359": {
     "region": "BG",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "불가리아",
+      "zh": "保加利亚",
+      "en": "Bulgaria",
+      "ja": "ブルガリア"
+    }
   },
   "+370": {
     "region": "LT",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "리투아니아",
+      "zh": "立陶宛",
+      "en": "Lithuania",
+      "ja": "リトアニア"
+    }
   },
   "+371": {
     "region": "LV",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "라트비아",
+      "zh": "拉脱维亚",
+      "en": "Latvia",
+      "ja": "ラトビア"
+    }
   },
   "+372": {
     "region": "EE",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "에스토니아",
+      "zh": "爱沙尼亚",
+      "en": "Estonia",
+      "ja": "エストニア"
+    }
   },
   "+373": {
     "region": "MD",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "몰도바",
+      "zh": "摩尔多瓦",
+      "en": "Moldova",
+      "ja": "モルドバ"
+    }
   },
   "+374": {
     "region": "AM",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "아르메니아",
+      "zh": "亚美尼亚",
+      "en": "Armenia",
+      "ja": "アルメニア"
+    }
   },
   "+375": {
     "region": "BY",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "벨라루스",
+      "zh": "白俄罗斯",
+      "en": "Belarus",
+      "ja": "ベラルーシ"
+    }
   },
   "+376": {
     "region": "AD",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "안도라",
+      "zh": "安道尔",
+      "en": "Andorra",
+      "ja": "アンドラ"
+    }
   },
   "+377": {
     "region": "MC",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "모나코",
+      "zh": "摩纳哥",
+      "en": "Monaco",
+      "ja": "モナコ"
+    }
   },
   "+378": {
     "region": "SM",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "산마리노",
+      "zh": "圣马力诺",
+      "en": "San Marino",
+      "ja": "サンマリノ"
+    }
   },
   "+380": {
     "region": "UA",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "우크라이나",
+      "zh": "乌克兰",
+      "en": "Ukraine",
+      "ja": "ウクライナ"
+    }
   },
   "+381": {
     "region": "RS",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "세르비아",
+      "zh": "塞尔维亚",
+      "en": "Serbia",
+      "ja": "セルビア"
+    }
   },
   "+382": {
     "region": "ME",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "몬테네그로",
+      "zh": "黑山",
+      "en": "Montenegro",
+      "ja": "モンテネグロ"
+    }
   },
   "+383": {
     "region": "XK",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "코소보",
+      "zh": "科索沃",
+      "en": "Kosovo",
+      "ja": "コソボ"
+    }
   },
   "+385": {
     "region": "HR",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "크로아티아",
+      "zh": "克罗地亚",
+      "en": "Croatia",
+      "ja": "クロアチア"
+    }
   },
   "+386": {
     "region": "SI",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "슬로베니아",
+      "zh": "斯洛文尼亚",
+      "en": "Slovenia",
+      "ja": "スロベニア"
+    }
   },
   "+387": {
     "region": "BA",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "보스니아 헤르체고비나",
+      "zh": "波斯尼亚和黑塞哥维那",
+      "en": "Bosnia & Herzegovina",
+      "ja": "ボスニア・ヘルツェゴビナ"
+    }
   },
   "+389": {
     "region": "MK",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "북마케도니아",
+      "zh": "北马其顿",
+      "en": "North Macedonia",
+      "ja": "北マケドニア"
+    }
   },
   "+420": {
     "region": "CZ",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "체코",
+      "zh": "捷克",
+      "en": "Czechia",
+      "ja": "チェコ"
+    }
   },
   "+421": {
     "region": "SK",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "슬로바키아",
+      "zh": "斯洛伐克",
+      "en": "Slovakia",
+      "ja": "スロバキア"
+    }
   },
   "+423": {
     "region": "LI",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "리히텐슈타인",
+      "zh": "列支敦士登",
+      "en": "Liechtenstein",
+      "ja": "リヒテンシュタイン"
+    }
   },
   "+500": {
     "region": "FK",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "포클랜드 제도",
+      "zh": "福克兰群岛",
+      "en": "Falkland Islands",
+      "ja": "フォークランド諸島"
+    }
   },
   "+501": {
     "region": "BZ",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "벨리즈",
+      "zh": "伯利兹",
+      "en": "Belize",
+      "ja": "ベリーズ"
+    }
   },
   "+502": {
     "region": "GT",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "과테말라",
+      "zh": "危地马拉",
+      "en": "Guatemala",
+      "ja": "グアテマラ"
+    }
   },
   "+503": {
     "region": "SV",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "엘살바도르",
+      "zh": "萨尔瓦多",
+      "en": "El Salvador",
+      "ja": "エルサルバドル"
+    }
   },
   "+504": {
     "region": "HN",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "온두라스",
+      "zh": "洪都拉斯",
+      "en": "Honduras",
+      "ja": "ホンジュラス"
+    }
   },
   "+505": {
     "region": "NI",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "니카라과",
+      "zh": "尼加拉瓜",
+      "en": "Nicaragua",
+      "ja": "ニカラグア"
+    }
   },
   "+506": {
     "region": "CR",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "코스타리카",
+      "zh": "哥斯达黎加",
+      "en": "Costa Rica",
+      "ja": "コスタリカ"
+    }
   },
   "+507": {
     "region": "PA",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "파나마",
+      "zh": "巴拿马",
+      "en": "Panama",
+      "ja": "パナマ"
+    }
   },
   "+508": {
     "region": "PM",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "생피에르 미클롱",
+      "zh": "圣皮埃尔和密克隆群岛",
+      "en": "St. Pierre & Miquelon",
+      "ja": "サンピエール島・ミクロン島"
+    }
   },
   "+509": {
     "region": "HT",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "아이티",
+      "zh": "海地",
+      "en": "Haiti",
+      "ja": "ハイチ"
+    }
   },
   "+590": {
     "region": "GP",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "과들루프",
+      "zh": "瓜德罗普",
+      "en": "Guadeloupe",
+      "ja": "グアドループ"
+    }
   },
   "+591": {
     "region": "BO",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "볼리비아",
+      "zh": "玻利维亚",
+      "en": "Bolivia",
+      "ja": "ボリビア"
+    }
   },
   "+592": {
     "region": "GY",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "가이아나",
+      "zh": "圭亚那",
+      "en": "Guyana",
+      "ja": "ガイアナ"
+    }
   },
   "+593": {
     "region": "EC",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "에콰도르",
+      "zh": "厄瓜多尔",
+      "en": "Ecuador",
+      "ja": "エクアドル"
+    }
   },
   "+594": {
     "region": "GF",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "프랑스령 기아나",
+      "zh": "法属圭亚那",
+      "en": "French Guiana",
+      "ja": "仏領ギアナ"
+    }
   },
   "+595": {
     "region": "PY",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "파라과이",
+      "zh": "巴拉圭",
+      "en": "Paraguay",
+      "ja": "パラグアイ"
+    }
   },
   "+596": {
     "region": "MQ",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "마르티니크",
+      "zh": "马提尼克",
+      "en": "Martinique",
+      "ja": "マルティニーク"
+    }
   },
   "+597": {
     "region": "SR",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "수리남",
+      "zh": "苏里南",
+      "en": "Suriname",
+      "ja": "スリナム"
+    }
   },
   "+598": {
     "region": "UY",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "우루과이",
+      "zh": "乌拉圭",
+      "en": "Uruguay",
+      "ja": "ウルグアイ"
+    }
   },
   "+599": {
     "region": "CW",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "퀴라소",
+      "zh": "库拉索",
+      "en": "Curaçao",
+      "ja": "キュラソー"
+    }
   },
   "+670": {
     "region": "TL",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "동티모르",
+      "zh": "东帝汶",
+      "en": "Timor-Leste",
+      "ja": "東ティモール"
+    }
   },
   "+672": {
     "region": "NF",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "노퍽섬",
+      "zh": "诺福克岛",
+      "en": "Norfolk Island",
+      "ja": "ノーフォーク島"
+    }
   },
   "+673": {
     "region": "BN",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "브루나이",
+      "zh": "文莱",
+      "en": "Brunei",
+      "ja": "ブルネイ"
+    }
   },
   "+674": {
     "region": "NR",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "나우루",
+      "zh": "瑙鲁",
+      "en": "Nauru",
+      "ja": "ナウル"
+    }
   },
   "+675": {
     "region": "PG",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "파푸아뉴기니",
+      "zh": "巴布亚新几内亚",
+      "en": "Papua New Guinea",
+      "ja": "パプアニューギニア"
+    }
   },
   "+676": {
     "region": "TO",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "통가",
+      "zh": "汤加",
+      "en": "Tonga",
+      "ja": "トンガ"
+    }
   },
   "+677": {
     "region": "SB",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "솔로몬 제도",
+      "zh": "所罗门群岛",
+      "en": "Solomon Islands",
+      "ja": "ソロモン諸島"
+    }
   },
   "+678": {
     "region": "VU",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "바누아투",
+      "zh": "瓦努阿图",
+      "en": "Vanuatu",
+      "ja": "バヌアツ"
+    }
   },
   "+679": {
     "region": "FJ",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "피지",
+      "zh": "斐济",
+      "en": "Fiji",
+      "ja": "フィジー"
+    }
   },
   "+680": {
     "region": "PW",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "팔라우",
+      "zh": "帕劳",
+      "en": "Palau",
+      "ja": "パラオ"
+    }
   },
   "+681": {
     "region": "WF",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "왈리스-푸투나 제도",
+      "zh": "瓦利斯和富图纳",
+      "en": "Wallis & Futuna",
+      "ja": "ウォリス・フツナ"
+    }
   },
   "+682": {
     "region": "CK",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "쿡 제도",
+      "zh": "库克群岛",
+      "en": "Cook Islands",
+      "ja": "クック諸島"
+    }
   },
   "+683": {
     "region": "NU",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "니우에",
+      "zh": "纽埃",
+      "en": "Niue",
+      "ja": "ニウエ"
+    }
   },
   "+685": {
     "region": "WS",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "사모아",
+      "zh": "萨摩亚",
+      "en": "Samoa",
+      "ja": "サモア"
+    }
   },
   "+686": {
     "region": "KI",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "키리바시",
+      "zh": "基里巴斯",
+      "en": "Kiribati",
+      "ja": "キリバス"
+    }
   },
   "+687": {
     "region": "NC",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "뉴칼레도니아",
+      "zh": "新喀里多尼亚",
+      "en": "New Caledonia",
+      "ja": "ニューカレドニア"
+    }
   },
   "+688": {
     "region": "TV",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "투발루",
+      "zh": "图瓦卢",
+      "en": "Tuvalu",
+      "ja": "ツバル"
+    }
   },
   "+689": {
     "region": "PF",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "프랑스령 폴리네시아",
+      "zh": "法属波利尼西亚",
+      "en": "French Polynesia",
+      "ja": "仏領ポリネシア"
+    }
   },
   "+690": {
     "region": "TK",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "토켈라우",
+      "zh": "托克劳",
+      "en": "Tokelau",
+      "ja": "トケラウ"
+    }
   },
   "+691": {
     "region": "FM",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "미크로네시아",
+      "zh": "密克罗尼西亚",
+      "en": "Micronesia",
+      "ja": "ミクロネシア連邦"
+    }
   },
   "+692": {
     "region": "MH",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "마셜 제도",
+      "zh": "马绍尔群岛",
+      "en": "Marshall Islands",
+      "ja": "マーシャル諸島"
+    }
   },
   "+850": {
     "region": "KP",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "북한",
+      "zh": "朝鲜",
+      "en": "North Korea",
+      "ja": "北朝鮮"
+    }
   },
   "+852": {
     "region": "HK",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "홍콩(중국 특별행정구)",
+      "zh": "中国香港特别行政区",
+      "en": "Hong Kong SAR China",
+      "ja": "中華人民共和国香港特別行政区"
+    }
   },
   "+853": {
     "region": "MO",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "마카오(중국 특별행정구)",
+      "zh": "中国澳门特别行政区",
+      "en": "Macao SAR China",
+      "ja": "中華人民共和国マカオ特別行政区"
+    }
   },
   "+855": {
     "region": "KH",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "캄보디아",
+      "zh": "柬埔寨",
+      "en": "Cambodia",
+      "ja": "カンボジア"
+    }
   },
   "+856": {
     "region": "LA",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "라오스",
+      "zh": "老挝",
+      "en": "Laos",
+      "ja": "ラオス"
+    }
   },
   "+880": {
     "region": "BD",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "방글라데시",
+      "zh": "孟加拉国",
+      "en": "Bangladesh",
+      "ja": "バングラデシュ"
+    }
   },
   "+886": {
     "region": "TW",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "대만",
+      "zh": "台湾",
+      "en": "Taiwan",
+      "ja": "台湾"
+    }
   },
   "+960": {
     "region": "MV",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "몰디브",
+      "zh": "马尔代夫",
+      "en": "Maldives",
+      "ja": "モルディブ"
+    }
   },
   "+961": {
     "region": "LB",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "레바논",
+      "zh": "黎巴嫩",
+      "en": "Lebanon",
+      "ja": "レバノン"
+    }
   },
   "+962": {
     "region": "JO",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "요르단",
+      "zh": "约旦",
+      "en": "Jordan",
+      "ja": "ヨルダン"
+    }
   },
   "+963": {
     "region": "SY",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "시리아",
+      "zh": "叙利亚",
+      "en": "Syria",
+      "ja": "シリア"
+    }
   },
   "+964": {
     "region": "IQ",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "이라크",
+      "zh": "伊拉克",
+      "en": "Iraq",
+      "ja": "イラク"
+    }
   },
   "+965": {
     "region": "KW",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "쿠웨이트",
+      "zh": "科威特",
+      "en": "Kuwait",
+      "ja": "クウェート"
+    }
   },
   "+966": {
     "region": "SA",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "사우디아라비아",
+      "zh": "沙特阿拉伯",
+      "en": "Saudi Arabia",
+      "ja": "サウジアラビア"
+    }
   },
   "+967": {
     "region": "YE",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "예멘",
+      "zh": "也门",
+      "en": "Yemen",
+      "ja": "イエメン"
+    }
   },
   "+968": {
     "region": "OM",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "오만",
+      "zh": "阿曼",
+      "en": "Oman",
+      "ja": "オマーン"
+    }
   },
   "+970": {
     "region": "PS",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "팔레스타인 지구",
+      "zh": "巴勒斯坦领土",
+      "en": "Palestinian Territories",
+      "ja": "パレスチナ自治区"
+    }
   },
   "+971": {
     "region": "AE",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "아랍에미리트",
+      "zh": "阿拉伯联合酋长国",
+      "en": "United Arab Emirates",
+      "ja": "アラブ首長国連邦"
+    }
   },
   "+972": {
     "region": "IL",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "이스라엘",
+      "zh": "以色列",
+      "en": "Israel",
+      "ja": "イスラエル"
+    }
   },
   "+973": {
     "region": "BH",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "바레인",
+      "zh": "巴林",
+      "en": "Bahrain",
+      "ja": "バーレーン"
+    }
   },
   "+974": {
     "region": "QA",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "카타르",
+      "zh": "卡塔尔",
+      "en": "Qatar",
+      "ja": "カタール"
+    }
   },
   "+975": {
     "region": "BT",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "부탄",
+      "zh": "不丹",
+      "en": "Bhutan",
+      "ja": "ブータン"
+    }
   },
   "+976": {
     "region": "MN",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "몽골",
+      "zh": "蒙古",
+      "en": "Mongolia",
+      "ja": "モンゴル"
+    }
   },
   "+977": {
     "region": "NP",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "네팔",
+      "zh": "尼泊尔",
+      "en": "Nepal",
+      "ja": "ネパール"
+    }
   },
   "+992": {
     "region": "TJ",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "타지키스탄",
+      "zh": "塔吉克斯坦",
+      "en": "Tajikistan",
+      "ja": "タジキスタン"
+    }
   },
   "+993": {
     "region": "TM",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "투르크메니스탄",
+      "zh": "土库曼斯坦",
+      "en": "Turkmenistan",
+      "ja": "トルクメニスタン"
+    }
   },
   "+994": {
     "region": "AZ",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "아제르바이잔",
+      "zh": "阿塞拜疆",
+      "en": "Azerbaijan",
+      "ja": "アゼルバイジャン"
+    }
   },
   "+995": {
     "region": "GE",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "조지아",
+      "zh": "格鲁吉亚",
+      "en": "Georgia",
+      "ja": "ジョージア"
+    }
   },
   "+996": {
     "region": "KG",
-    "strip_zero": true
+    "strip_zero": true,
+    "names": {
+      "ko": "키르기스스탄",
+      "zh": "吉尔吉斯斯坦",
+      "en": "Kyrgyzstan",
+      "ja": "キルギス"
+    }
   },
   "+998": {
     "region": "UZ",
-    "strip_zero": false
+    "strip_zero": false,
+    "names": {
+      "ko": "우즈베키스탄",
+      "zh": "乌兹别克斯坦",
+      "en": "Uzbekistan",
+      "ja": "ウズベキスタン"
+    }
   }
 }
