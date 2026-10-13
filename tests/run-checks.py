@@ -121,7 +121,59 @@ def self_test():
     ):
         got = kind_of(rel)
         assert got == want, 'kind_of(%r) = %r, expected %r' % (rel, got, want)
+
+    # The ceiling extractor's own sensitivity. Forwarding a child's declared non-coverage is only worth
+    # anything if it fires on what the committed checkers ACTUALLY print, and stays empty otherwise - a
+    # ceiling reporter that silently finds nothing is the swallow it was written to fix.
+    quota_style = 'VERIFY PASS\n  some check\n  NOT verified here: no PHP executed, no database,\n  and the write path has never run.\n'
+    cjs_style = 'PASS  premise 1\nNOTE  source-text assertions, not a behavioural comparison: that would\n      need the Laravel container. No PHP was executed.\n'
+    none_style = 'PASS  php_probe self-test: every probe catches the violation spellings\n'
+    got = ceiling_lines(quota_style)
+    assert got == ['NOT verified here: no PHP executed, no database,',
+                   'and the write path has never run.'], got
+    got = ceiling_lines(cjs_style)
+    assert got == ['NOTE  source-text assertions, not a behavioural comparison: that would',
+                   'need the Laravel container. No PHP was executed.'], got
+    assert ceiling_lines(none_style) == [], ceiling_lines(none_style)
+    # An unindented line ENDS the block, so a ceiling cannot swallow the rest of a child's output.
+    assert ceiling_lines('NOTE  a limit\nPASS  unrelated later line\n') == ['NOTE  a limit']
     return True
+
+
+# The markers a checker uses to declare what it did NOT verify. MEASURED from the committed checkers
+# rather than invented: verify-server-quota.py and verify-signup-policy.py print "NOT verified here:",
+# premise-settings-resolution.check.cjs prints "NOTE". A continuation line is an indented non-empty line
+# directly below.
+CEILING_MARKERS = ('NOT verified here', 'NOT VERIFIED HERE', 'NOTE ', 'NOTE\t')
+
+
+def ceiling_lines(out):
+    """A passing child's SELF-DECLARED non-coverage, so aggregation cannot swallow it.
+
+    QA found, and LEAD confirmed on a second checker, that this runner collapsed a 12-line PASS into one
+    'PASS' line - and the lines it dropped were precisely the ones saying what the tool had NOT checked.
+    The PASS was true for what the checker asserts, so this was never a false pass; the defect was that
+    the SUITE OVERSTATED THE STRENGTH OF THE EVIDENCE relative to running the tool by hand. It is the
+    three-state problem one layer up: 'passed, with a declared ceiling' was flattened into 'passed'.
+
+    A wrapper discarding the inner tool's own report is the general shape, so the ceiling travels
+    verbatim and the PASS line is marked. A passing child that declares NO ceiling is reported as such,
+    because 'no limits stated' and 'limits stated and dropped' must not look the same either - absence
+    is silent unless something says so out loud.
+    """
+    keep, grabbing = [], False
+    for line in out.splitlines():
+        s = line.strip()
+        if any(s.startswith(m) for m in CEILING_MARKERS):
+            keep.append(s)
+            grabbing = True
+            continue
+        if grabbing:
+            if s and line[:1] in (' ', '\t'):
+                keep.append(s)
+            else:
+                grabbing = False
+    return keep
 
 
 def tracked_checks():
@@ -184,6 +236,7 @@ def main():
 
     node, php = which('node'), which('php')
     failed, unrun, passed = [], [], []
+    ceilinged, silent = [], []
     for rel, kind in sorted(discovered.items()):
         path = os.path.join(ROOT, rel)
         if kind == 'node':
@@ -202,7 +255,15 @@ def main():
         out = (r.stdout or '') + (r.stderr or '')
         if r.returncode == 0:
             passed.append(label)
-            print('PASS     %s' % label)
+            ceiling = ceiling_lines(out)
+            if ceiling:
+                print('PASS*    %s   (* passed WITH a declared ceiling, forwarded below)' % label)
+                for l in ceiling:
+                    print('           %s' % l)
+                ceilinged.append(label)
+            else:
+                print('PASS     %s   (declares no ceiling of its own)' % label)
+                silent.append(label)
         elif r.returncode == 2:
             # Carried through, not flattened: a check with a three-state contract keeps it when wrapped.
             unrun.append(label)
@@ -219,6 +280,10 @@ def main():
     print('%d passed, %d failed, %d could not run, of %d discovered%s' % (
         len(passed), len(failed), len(unrun), len(discovered),
         '' if tracked is None else ' (%d committed)' % len(tracked)))
+    if passed:
+        # The count alone would re-hide what the forwarding just exposed, so the split is in the summary.
+        print('         of the %d that passed, %d declared a ceiling (shown above) and %d declared none'
+              % (len(passed), len(ceilinged), len(silent)))
 
     if failed or composition_failed:
         if composition_failed and not failed:
@@ -241,5 +306,7 @@ if __name__ == '__main__':
         print('      and rejects the runner itself, a dashless verify.py, a helper and a non-check file,')
         print('      the archived pre-audit instruments under tests/baseline/, and anything below depth')
         print('      1 - which discovery cannot reach, so the manifest must not claim it either')
+        print('      and the ceiling extractor fires on both marker styles the committed checkers use,')
+        print('      stops at an unindented line, and stays empty when a child declares nothing')
         sys.exit(0)
     sys.exit(main())
