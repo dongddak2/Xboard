@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\AuthService;
 use App\Services\ConsentService;
 use App\Services\SignupEmailPolicyService;
+use App\Services\SignupContactService;
 use App\Utils\CacheKey;
 use App\Utils\Dict;
 use App\Utils\Helper;
@@ -123,6 +124,13 @@ class AuthController extends Controller
             // optional content-language header; the response envelope itself is unchanged.
             return $this->fail([422, $consentErrors[0][1]], null, $consentErrors[0][0]);
         }
+        if ($contactError = SignupContactService::validationError($request->all())) {
+            return $this->fail([422, __('Please check your name, WeChat ID, phone and required consents')], null, $contactError);
+        }
+        if (!SignupContactService::available()) {
+            return $this->fail([503, __('Signup contact storage is not ready')], null, 'CONTACT_STORAGE_UNAVAILABLE');
+        }
+        $contact = SignupContactService::normalize($request->all());
         $consentVersion = ConsentService::currentVersion();
         $consentLocale = ConsentService::normalizeLocale($request->input('consent_locale'));
         if ((int)admin_setting('invite_force', 0)) {
@@ -191,11 +199,12 @@ class AuthController extends Controller
         // ManduVPN RC: the user row and its consent evidence commit or roll back together (RC_CONTRACTS.md §3.2),
         // so a v2_user row can never exist without the consent it was created under.
         try {
-            $created = DB::transaction(function () use ($user, $consentVersion, $consentLocale) {
+            $created = DB::transaction(function () use ($user, $consentVersion, $consentLocale, $contact) {
                 if (!$user->save()) {
                     return false;
                 }
                 ConsentService::record((int) $user->id, $consentVersion, (string) $consentLocale, time());
+                SignupContactService::record((int) $user->id, $contact, time());
                 return true;
             });
         } catch (\Throwable $e) {

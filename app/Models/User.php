@@ -36,6 +36,12 @@ class User extends Authenticatable
     // does not fire model events, so no rotation path may be rewritten into one.
     protected static function booted(): void
     {
+        static::deleting(function (self $user) {
+            // Only the new private contact row; the caller still controls account deletion.
+            if (\Illuminate\Support\Facades\Schema::hasTable('v2_user_contact')) {
+                \Illuminate\Support\Facades\DB::table('v2_user_contact')->where('user_id', $user->id)->delete();
+            }
+        });
         static::saved(function (self $user) {
             // wasRecentlyCreated: a fresh row reports every attribute as changed, and a brand-new user cannot
             // have a credential yet, so creation would otherwise run a pointless DELETE per user.
