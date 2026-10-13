@@ -81,6 +81,11 @@ class ConfigSave extends FormRequest
         // safe
         'email_whitelist_enable' => 'boolean',
         'email_whitelist_suffix' => 'nullable|array',
+        // ManduVPN signup policy: one list per region, stored in the existing settings rows (no schema
+        // change). An empty list closes that signup route - SignupEmailPolicyService fails closed on it
+        // rather than falling back to the default, so emptying it is a deliberate act, not a reset.
+        'manduvpn_signup_email_domains_kr' => 'nullable|array',
+        'manduvpn_signup_email_domains_foreign' => 'nullable|array',
         'email_gmail_limit_enable' => 'boolean',
         'recaptcha_enable' => 'boolean',
         'recaptcha_key' => '',

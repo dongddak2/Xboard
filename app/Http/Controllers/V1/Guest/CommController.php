@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\V1\Guest;
 
 use App\Http\Controllers\Controller;
+use App\Services\SignupEmailPolicyService;
 use App\Utils\Dict;
 use Illuminate\Support\Facades\Http;
 
@@ -17,6 +18,10 @@ class CommController extends Controller
             'email_whitelist_suffix' => (int)admin_setting('email_whitelist_enable', 0)
                 ? $this->getEmailSuffix()
                 : 0,
+            // ManduVPN signup policy: published so a screen READS the allowed domains and the phone
+            // "preparing" state instead of carrying its own copy. `available` is false when a list is
+            // unusable, which a screen must treat as "cannot sign up", never as an empty dropdown.
+            'signup_email_policy' => SignupEmailPolicyService::publicPolicy(),
             'is_recaptcha' => (int)admin_setting('recaptcha_enable', 0) ? 1 : 0,
             'recaptcha_site_key' => admin_setting('recaptcha_site_key'),
             'app_description' => admin_setting('app_description'),

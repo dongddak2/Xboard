@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ConfigSave;
 use App\Models\Setting;
 use App\Services\MailService;
+use App\Services\SignupEmailPolicyService;
 use App\Services\TelegramService;
 use App\Services\ThemeService;
 use App\Utils\Dict;
@@ -160,6 +161,9 @@ class ConfigController extends Controller
                 'email_whitelist_enable' => (bool) admin_setting('email_whitelist_enable', 0),
                 'email_whitelist_suffix' => admin_setting('email_whitelist_suffix', Dict::EMAIL_WHITELIST_SUFFIX_DEFAULT),
                 'email_gmail_limit_enable' => (bool) admin_setting('email_gmail_limit_enable', 0),
+                // ManduVPN signup policy, one editable list per region. Defaults are the Owner's table.
+                'manduvpn_signup_email_domains_kr' => SignupEmailPolicyService::domainsFor('kr'),
+                'manduvpn_signup_email_domains_foreign' => SignupEmailPolicyService::domainsFor('foreign'),
                 'recaptcha_enable' => (bool) admin_setting('recaptcha_enable', 0),
                 'recaptcha_key' => admin_setting('recaptcha_key', ''),
                 'recaptcha_site_key' => admin_setting('recaptcha_site_key', ''),

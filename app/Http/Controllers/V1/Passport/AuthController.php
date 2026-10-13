@@ -13,6 +13,7 @@ use App\Models\Plan;
 use App\Models\User;
 use App\Services\AuthService;
 use App\Services\ConsentService;
+use App\Services\SignupEmailPolicyService;
 use App\Utils\CacheKey;
 use App\Utils\Dict;
 use App\Utils\Helper;
@@ -90,6 +91,12 @@ class AuthController extends Controller
                 return $this->fail([400,__('Invalid code is incorrect')]);
             }
         }
+        // ManduVPN signup policy (Owner, 2026-10-13). THIS is the domain gate, and it does not depend on
+        // email_whitelist_enable - that flag is 0 in live, which is why every domain was accepted. Checked
+        // before any side effect: no invite code consumed, no user row, nothing cached.
+        if ($policyError = SignupEmailPolicyService::validateRequest($request->input('region'), $request->input('email'))) {
+            return $this->fail([422, $policyError[1]], null, $policyError[0]);
+        }
         if ((int)admin_setting('email_whitelist_enable', 0)) {
             if (!Helper::emailSuffixVerify(
                 $request->input('email'),
@@ -123,13 +130,17 @@ class AuthController extends Controller
                 return $this->fail([422,__('You must use the invitation code to register')]);
             }
         }
-        if ((int)admin_setting('email_verify', 0)) {
-            if (empty($request->input('email_code'))) {
-                return $this->fail([422,__('Email verification code cannot be empty')]);
-            }
-            if ((string)Cache::get(CacheKey::get('EMAIL_VERIFY_CODE', $request->input('email'))) !== (string)$request->input('email_code')) {
-                return $this->fail([400,__('Incorrect email verification code')]);
-            }
+        // ManduVPN: the email code is ALWAYS required on this route and the global email_verify flag is
+        // deliberately not consulted - it is 0 in live, which is why a signup needed no code at all. The key
+        // is scoped to (purpose, region, address), so a code obtained for another address or the other
+        // region's flow does not verify this one, and an expired code simply is not there.
+        $signupRegion = SignupEmailPolicyService::normalizeRegion($request->input('region'));
+        if (empty($request->input('email_code'))) {
+            return $this->fail([422,__('Email verification code cannot be empty')]);
+        }
+        $expectedCode = Cache::get(SignupEmailPolicyService::codeCacheKey($request->input('email'), $signupRegion));
+        if ($expectedCode === null || (string)$expectedCode !== (string)$request->input('email_code')) {
+            return $this->fail([400,__('Incorrect email verification code')]);
         }
         $email = $request->input('email');
         $password = $request->input('password');
@@ -196,9 +207,10 @@ class AuthController extends Controller
         if (!$created) {
             return $this->fail([500,__('Register failed')]);
         }
-        if ((int)admin_setting('email_verify', 0)) {
-            Cache::forget(CacheKey::get('EMAIL_VERIFY_CODE', $request->input('email')));
-        }
+        // The code is single-use: consume it unconditionally, and consume the SCOPED key - the one
+        // register() actually verified against. This used to forget the unscoped key and only when
+        // email_verify was on, so with that flag at 0 a used code stayed valid for the rest of its TTL.
+        Cache::forget(SignupEmailPolicyService::codeCacheKey($request->input('email'), $signupRegion));
 
         $user->last_login_at = time();
         $user->save();

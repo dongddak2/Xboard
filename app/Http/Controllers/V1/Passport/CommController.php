@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Passport\CommSendEmailVerify;
 use App\Jobs\SendEmailJob;
 use App\Models\InviteCode;
+use App\Services\SignupEmailPolicyService;
 use App\Utils\CacheKey;
 use App\Utils\Dict;
 use Illuminate\Http\Request;
@@ -29,6 +30,14 @@ class CommController extends Controller
                 return $this->fail([400, __('Invalid code is incorrect')]);
             }
         }
+        // ManduVPN: region + exact domain are validated BEFORE anything is sent. This endpoint had no
+        // domain gate at all, so a direct call could have a code mailed to any address. A missing or unknown
+        // region is refused rather than defaulted - guessing one would send under the wrong policy.
+        $region = $request->input('region');
+        if ($policyError = SignupEmailPolicyService::validateRequest($region, $request->input('email'))) {
+            return $this->fail([422, $policyError[1]], null, $policyError[0]);
+        }
+        $region = SignupEmailPolicyService::normalizeRegion($region);
         $email = $request->input('email');
         if (Cache::get(CacheKey::get('LAST_SEND_EMAIL_VERIFY_TIMESTAMP', $email))) {
             return $this->fail([400, __('Email verification code has been sent, please request again later')]);
@@ -47,7 +56,9 @@ class CommController extends Controller
             ]
         ]);
 
-        Cache::put(CacheKey::get('EMAIL_VERIFY_CODE', $email), $code, 300);
+        // Scoped to (purpose, region, address): a code sent here cannot verify a different address or the
+        // other region's flow, so a late send response cannot license whatever the user has since typed.
+        Cache::put(SignupEmailPolicyService::codeCacheKey($email, $region), $code, 300);
         Cache::put(CacheKey::get('LAST_SEND_EMAIL_VERIFY_TIMESTAMP', $email), time(), 60);
         return $this->success(true);
     }

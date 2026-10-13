@@ -14,7 +14,9 @@ class CommSendEmailVerify extends FormRequest
     public function rules()
     {
         return [
-            'email' => 'required|email:strict'
+            'email' => 'required|email:strict',
+            // See AuthRegister: the region VALUES are owned by SignupEmailPolicyService::REGIONS.
+            'region' => 'required|string'
         ];
     }
 
@@ -22,7 +24,8 @@ class CommSendEmailVerify extends FormRequest
     {
         return [
             'email.required' => __('Email can not be empty'),
-            'email.email' => __('Email format is incorrect')
+            'email.email' => __('Email format is incorrect'),
+            'region.required' => __('Signup region is required')
         ];
     }
 }
