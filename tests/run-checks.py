@@ -188,6 +188,58 @@ def tracked_checks():
     return set(p for p in out if kind_of(p))
 
 
+def head_blobs():
+    """{path: blob} for the committed tests/ files AT HEAD, or None when git cannot answer.
+
+    HEAD and not the index, deliberately. The property is that what executed is what THE COMMIT
+    contains, so a file staged but never committed has no reference here and must not run.
+    """
+    try:
+        r = subprocess.run(['git', 'ls-tree', '-r', 'HEAD', '--', 'tests/'],
+                           cwd=ROOT, capture_output=True, text=True)
+    except OSError:
+        return None
+    if r.returncode != 0:
+        return None                      # unborn HEAD, no repository, or no commits yet
+    out = {}
+    for line in r.stdout.splitlines():
+        # <mode> SP <type> SP <object> TAB <path>
+        if '\t' not in line:
+            continue
+        meta, path = line.split('\t', 1)
+        bits = meta.split()
+        if len(bits) >= 3 and bits[1] == 'blob':
+            out[path.strip().replace('\\', '/')] = bits[2]
+    return out
+
+
+def tree_blobs(rels):
+    """{path: blob} for files ON DISK, hashed BY GIT, or None when git cannot answer.
+
+    `git hash-object <path>` and never a digest of my own, because the working tree LEGITIMATELY differs
+    from the blob under `* text=auto`: a CRLF file on disk hashes to something else entirely as raw
+    bytes while git correctly calls the tree clean. QA hit exactly that - their own digest of this file
+    gave 7ce6d6ce against the blob's 63db038a, because the disk copy is 312 CRLF and 0 bare LF. A raw
+    digest answers a question about bytes on disk; a pin is a question about the object store, so the
+    comparison has to go through git's own hashing or it produces a false mismatch on every CRLF file -
+    loud, and useless.
+    """
+    rels = list(rels)
+    if not rels:
+        return {}
+    try:
+        r = subprocess.run(['git', 'hash-object', '--'] + rels,
+                           cwd=ROOT, capture_output=True, text=True)
+    except OSError:
+        return None
+    if r.returncode != 0:
+        return None
+    lines = [l.strip() for l in r.stdout.splitlines() if l.strip()]
+    if len(lines) != len(rels):
+        return None                      # one hash per path, or the pairing is not trustworthy
+    return dict(zip(rels, lines))
+
+
 def discovered_checks():
     """The checkers present in the working tree right now, by the same rule."""
     found = {}
@@ -209,6 +261,7 @@ def main():
 
     composition_failed = []
     no_manifest = False
+    bound = {}
     if tracked is None:
         no_manifest = True
         print('NO MANIFEST  git could not list tests/, so the composition of this run cannot be')
@@ -225,10 +278,64 @@ def main():
             # run set here, BEFORE the first subprocess, and never executed at all.
             composition_failed.append('UNTRACKED  %s is not committed - NOT EXECUTED, and this run is not reproducible' % rel)
             discovered.pop(rel, None)
+
+        # FIDELITY, WHICH MEMBERSHIP DOES NOT GIVE. The two set differences above prove that the SET of
+        # files matches the commit. They say nothing about CONTENT, so a checker that is committed but
+        # modified on disk passed the manifest and executed content the commit does not contain. QA
+        # found it by reading this code; LEAD reproduced it and found the part that makes it dangerous:
+        # on a FAIL the foreign output is forwarded and announces itself, but ON A PASS it is
+        # SUPPRESSED - so the hole is silent exactly when the run succeeds, and MANIFEST OK plus PASS
+        # agrees with the operator, so nobody looks. It had already fired in LEAD's own transcript.
+        # Dropped BEFORE the first subprocess for the same reason as untracked: the hazard is executing
+        # content nobody reviewed, and a verdict printed afterwards is detection, not prevention.
+        at_head = head_blobs()
+        on_disk = tree_blobs(sorted(discovered)) if at_head is not None else None
+        if at_head is None or on_disk is None:
+            no_manifest = True
+            print('NO FIDELITY  git could not bind the files on disk to HEAD, so this run cannot show')
+            print('             that what executed is what the commit contains - a no-verdict, not a pass')
+        else:
+            for rel in sorted(discovered):
+                if rel not in at_head:
+                    composition_failed.append(
+                        'UNCOMMITTED CONTENT  %s is tracked but in no commit - NOT EXECUTED' % rel)
+                    discovered.pop(rel, None)
+                elif on_disk.get(rel) != at_head[rel]:
+                    composition_failed.append(
+                        'MODIFIED  %s on disk is %s, HEAD has %s - NOT EXECUTED, the commit does not '
+                        'contain what would have run' % (rel, on_disk.get(rel, '?')[:8], at_head[rel][:8]))
+                    discovered.pop(rel, None)
+                else:
+                    bound[rel] = at_head[rel]
+
         for line in composition_failed:
             print(line)
-        if not composition_failed:
+        if not composition_failed and not no_manifest:
             print('MANIFEST OK  %d committed checker(s), all present, nothing untracked' % len(tracked))
+            # Stated affirmatively, not left as the absence of a complaint: these are the blobs that ran.
+            print('BOUND        every file below is bit-identical to its blob at HEAD (git hash-object):')
+            for rel in sorted(bound):
+                print('               %s  %s' % (bound[rel][:8], rel))
+            # AND THIS FILE, which was the one exemption. kind_of() excludes the runner from its own
+            # checks, so the fidelity test above skipped the aggregator - meaning the one program that
+            # reports on everyone else's content was the only one whose content nobody checked.
+            # HONEST LIMIT: this is DETECTION AND NOT PREVENTION. By the time it prints, the modified
+            # runner has already been running, including this very comparison. A modified runner could
+            # simply delete these lines. It is worth having because the realistic case is an edit
+            # someone forgot to commit, not a hostile one - and for a hostile one no self-check can
+            # help, which is why LEAD binds the runner EXTERNALLY before trusting a measurement.
+            self_disk = tree_blobs([HERE])
+            if self_disk is None or HERE not in at_head:
+                print('SELF         cannot bind %s to HEAD - take this run as unbound' % HERE)
+            elif self_disk[HERE] != at_head[HERE]:
+                print('SELF         %s on disk is %s but HEAD has %s - THE RUNNER ITSELF IS MODIFIED, so'
+                      % (HERE, self_disk[HERE][:8], at_head[HERE][:8]))
+                print('             this report is not reproducible from the commit. Detection, not')
+                print('             prevention: it already ran.')
+                no_manifest = True
+            else:
+                print('               %s  %s   (the runner, bound after the fact - see SELF note)'
+                      % (self_disk[HERE][:8], HERE))
 
     if not discovered:
         print('ABORT  no checks discovered in tests/ - the convention at the top of this file says what counts')
