@@ -229,6 +229,15 @@ class Server extends Model
 
         $this->last_check_at = Cache::get(CacheKey::get("SERVER_{$type}_LAST_CHECK_AT", $serverId));
         $this->last_push_at = Cache::get(CacheKey::get("SERVER_{$type}_LAST_PUSH_AT", $serverId));
+        // IKEv2 agents report health to v2_ikev2_node, not the UniProxy cache.
+        if ($this->type === self::TYPE_IKEV2) {
+            $health = IkeV2Node::find($serverId);
+            if ($health) {
+                $this->last_check_at = $health->token_hash ? $health->last_seen_at : null;
+                $this->last_push_at = $health->token_hash && $health->applied_revision && !$health->last_error
+                    ? $health->last_seen_at : null;
+            }
+        }
         $this->online = Cache::get(CacheKey::get("SERVER_{$type}_ONLINE_USER", $serverId)) ?? 0;
         $this->is_online = (time() - 300 > $this->last_check_at) ? 0 : 1;
         $this->available_status = $this->getAvailableStatus();
