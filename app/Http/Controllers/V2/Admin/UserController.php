@@ -167,6 +167,8 @@ class UserController extends Controller
             return self::transformUserData($user);
         });
 
+        \App\Services\AdminSignupContacts::attach($users->getCollection());
+
         return response([
             'data' => $users->items(),
             'total' => $users->total()
@@ -195,6 +197,7 @@ class UserController extends Controller
             'id.required' => '用户ID不能为空'
         ]);
         $user = User::find($request->input('id'))->load('invite_user');
+        \App\Services\AdminSignupContacts::attach([$user]);
         return $this->success($user);
     }
 

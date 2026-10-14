@@ -97,6 +97,7 @@ class AdminRoute
             ], function ($router) {
                 $router->post('/update', [ManageController::class, 'update']);
                 $router->post('/save', [ManageController::class, 'save']);
+                $router->post('/dualSave', [\App\Http\Controllers\V2\Admin\Server\DualNodeController::class, 'save']);
                 $router->post('/drop', [ManageController::class, 'drop']);
                 $router->get('/ikev2Node', [\App\Http\Controllers\V2\Admin\Server\IkeV2NodeController::class, 'fetch']); // ManduVPN PP-C4-1B
                 $router->post('/ikev2Node/issue', [\App\Http\Controllers\V2\Admin\Server\IkeV2NodeController::class, 'issue']); // ManduVPN PP-C4-1B
