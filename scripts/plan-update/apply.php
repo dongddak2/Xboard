@@ -24,6 +24,7 @@ DB::transaction(function () use ($apply, $expected) {
         }
         $tier = $id <= 6 ? 'pro' : 'master';
         if ($plan->service_tier !== null && $plan->service_tier !== $tier) throw new RuntimeException('다른 tier 충돌: '.$id);
+        if ($plan->audience !== null && $plan->audience !== 'public') throw new RuntimeException('비공개 상품 audience 충돌: '.$id);
     }
     $ike = Server::whereKey(3)->lockForUpdate()->firstOrFail();
     if ($ike->type !== 'ikev2' || !$ike->show || $ike->parent_id || $ike->host !== 'kr01.manduvpn.kr') {
@@ -48,6 +49,7 @@ DB::transaction(function () use ($apply, $expected) {
         if ($existing && !in_array((int)$existing->id,range(2,6),true)) {
             if (!$group || $existing->service_tier !== 'legacy' || (int)$existing->group_id !== (int)$group->id
                 || (int)$existing->device_limit !== $devices || (int)$existing->transfer_enable !== 999999
+                || $existing->audience !== 'public' || !$existing->show || !$existing->sell
                 || !ManduPlanRules::samePrices($existing->prices ?? [],$definition['prices'])
                 || !ManduPlanRules::samePrices($existing->prices_krw ?? [],$definition['prices_krw'])) {
                 throw new RuntimeException('새 베이직 상품과 동일한 이름의 다른 설정이 있습니다');
