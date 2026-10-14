@@ -281,7 +281,7 @@ class ServerQuotaService
     {
         $now = $now ?? time();
         $anchor = self::anchorOf($user);
-        $capBytes = self::capBytes($serverId);
+        $capBytes = MasterAccess::isUser($user) ? null : self::capBytes($serverId);
         if ($capBytes === null) {
             // Unlimited server: do not query usage at all.
             return self::state($anchor, null, null, $now);
@@ -315,7 +315,7 @@ class ServerQuotaService
         // Query 1: the anchors. A user whose anchor is indeterminate never enters $periodByUser, so they
         // can never appear in the returned list - that is the fail-OPEN direction, by ruling. See state().
         $periodByUser = [];
-        foreach (User::whereIn('id', $userIds)->pluck(self::ANCHOR_COLUMN, 'id') as $id => $anchor) {
+        foreach (User::whereIn('id', $userIds)->where(fn ($q) => MasterAccess::exclude($q))->pluck(self::ANCHOR_COLUMN, 'id') as $id => $anchor) {
             if (is_numeric($anchor) && (int) $anchor > 0) {
                 $periodByUser[(int) $id] = self::periodStart((int) $anchor, $now);
             }

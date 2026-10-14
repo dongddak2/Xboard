@@ -62,6 +62,7 @@ class PlanService
     //   admin_only -> never through the purchase flow; admin order/assign only (VIP)
     public static function audienceOf(Plan $plan): string
     {
+        if ($plan->service_tier === 'master') return 'admin_only';
         return (string) ($plan->audience ?: 'public');
     }
 
@@ -81,6 +82,7 @@ class PlanService
     // revoked after the order was created). admin_only orders exist only because an admin assigned them.
     public static function canUserPayPlan(?User $user, Plan $plan): bool
     {
+        if ($plan->service_tier === 'master') return false;
         return self::audienceOf($plan) !== 'partner' || ($user !== null && (int) $user->is_partner === 1);
     }
 

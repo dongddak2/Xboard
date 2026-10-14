@@ -72,7 +72,7 @@ class ServerService
     {
         $users = User::toBase()
             ->whereIn('group_id', $groupIds)
-            ->whereRaw('u + d < transfer_enable')
+            ->where(fn ($q) => MasterAccess::includeUnlimitedTraffic($q))
             ->where(function ($query) {
                 $query->where('expired_at', '>=', time())
                     ->orWhere('expired_at', NULL);
@@ -98,6 +98,14 @@ class ServerService
                 'device_limit'
             ])
             ->get();
+
+        if ($users->isNotEmpty()) {
+            $masterIds = array_fill_keys(MasterAccess::userIds($users->pluck('id')->all()), true);
+            $users = $users->map(function ($user) use ($masterIds) {
+                if (isset($masterIds[(int)$user->id])) $user->device_limit = null;
+                return $user;
+            });
+        }
 
         // ManduVPN SERVER-QUOTA-1: a user over THIS node's per-user cap is dropped from THIS node's list,
         // and from nothing else - their other entitled nodes and every other user are untouched. The cap is

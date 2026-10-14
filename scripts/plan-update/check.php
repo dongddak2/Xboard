@@ -8,4 +8,6 @@ for($n=1;$n<=5;$n++) {
   }
 }
 if(!ManduPlanRules::samePrices(['b'=>2,'a'=>1],['a'=>1,'b'=>2])) throw new Exception('price comparison');
+$master=ManduPlanRules::master();
+if($master['service_tier']!=='master'||$master['audience']!=='admin_only'||$master['device_limit']!==null||$master['show']!==0||$master['sell']!==0||$master['renew']!==0||$master['prices']!==[]||$master['prices_krw']!==[]) throw new Exception('private Master definition');
 echo "PASS 5 device plans, 60 periods, independent KRW/CNY, 999999GB\n";

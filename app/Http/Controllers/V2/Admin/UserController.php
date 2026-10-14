@@ -296,6 +296,10 @@ class UserController extends Controller
             }
             // return json_encode($plan);
             $params['group_id'] = $plan->group_id;
+            if ($plan->service_tier === 'master') {
+                $params['device_limit'] = null;
+                $params['transfer_enable'] = 999999 * 1073741824;
+            }
             // ManduVPN PP-C2: a real plan change re-decides the BASIC server through the single authoritative service
             // (re-sending the current plan - the admin UI does on every save - keeps it). Saved by the same
             // $user->update() as plan/group; no eligible BASIC node -> 422 before anything is written.
@@ -306,6 +310,12 @@ class UserController extends Controller
         }
         if (array_key_exists('plan_id', $params) && $params['plan_id'] === null) {
             $params['assigned_server_id'] = null; // ManduVPN PP-C2: no plan -> no single-server restriction
+            if (\App\Services\MasterAccess::isUser($user)) {
+                $params['group_id'] = null;
+                $params['transfer_enable'] = 0;
+                $params['device_limit'] = null;
+                $params['expired_at'] = 0;
+            }
         }
         // ManduVPN P1a: the inviter only changes when invite_user_email is explicitly sent (resolveInviterChange);
         // omitting the field - as every unrelated admin save does - leaves invite_user_id untouched.

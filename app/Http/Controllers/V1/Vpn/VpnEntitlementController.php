@@ -92,7 +92,8 @@ class VpnEntitlementController extends Controller
         ];
 
         // Omitted rather than guessed when unlimited - see the class note.
-        if ($user->device_limit !== null) {
+        $data['unlimitedDevices'] = \App\Services\MasterAccess::isUser($user) || $user->device_limit === null;
+        if (!$data['unlimitedDevices']) {
             $data['deviceLimit'] = (int) $user->device_limit;
             $data['concurrentConnectionLimit'] = (int) $user->device_limit;
         }

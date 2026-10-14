@@ -40,6 +40,13 @@ class PlanController extends Controller
             'audience' => 'sometimes|in:public,partner,admin_only', // ManduVPN PP-A
             'service_tier' => 'nullable|in:legacy,basic,pro,master,vip', // ManduVPN PP-A: explicit, never parsed from names (PLAN-ARCH-1A: + legacy)
         ]);
+        $tier = $params['service_tier'] ?? ($request->input('id') ? Plan::whereKey($request->input('id'))->value('service_tier') : null);
+        if ($tier === 'master') {
+            $params['audience'] = 'admin_only';
+            $params['device_limit'] = null;
+            $params['transfer_enable'] = 999999;
+            $params['show'] = 0; $params['sell'] = 0; $params['renew'] = 0;
+        }
         if ($request->input('id')) {
             $plan = Plan::find($request->input('id'));
             if (!$plan) {
@@ -102,6 +109,7 @@ class PlanController extends Controller
         }
 
         try {
+            if ($plan->service_tier === 'master') $updateData = ['show'=>0,'sell'=>0,'renew'=>0];
             $plan->update($updateData);
         } catch (\Exception $e) {
             \Log::error($e);

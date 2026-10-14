@@ -23,7 +23,7 @@ class ServerCatalogController extends Controller
                 if (!in_array((int) $plan->group_id, array_map('intval', $server->group_ids ?? []), true)) continue;
                 $name = match ($plan->service_tier) {
                     'legacy' => $server->type === 'ikev2' ? 'Basic' : null,
-                    'basic', 'pro' => 'Pro', 'master' => 'Premium', 'vip' => null,
+                    'basic' => 'Pro', 'pro' => 'Premium', 'master', 'vip' => null,
                     default => preg_match('/^(베이직|basic|프로|pro)(?:\s|·|$)/iu', $plan->name) ? 'Pro'
                         : (preg_match('/^(프리미엄|premium)(?:\s|·|$)/iu', $plan->name) ? 'Premium' : null),
                 };

@@ -1,0 +1,74 @@
+{
+  "app/Services/PlanService.php": [
+    {
+      "old": "        return (string) ($plan->audience ?: 'public');",
+      "new": "        if ($plan->service_tier === 'master') return 'admin_only';\n        return (string) ($plan->audience ?: 'public');"
+    },
+    {
+      "old": "        return self::audienceOf($plan) !== 'partner' ||",
+      "new": "        if ($plan->service_tier === 'master') return false;\n        return self::audienceOf($plan) !== 'partner' ||"
+    }
+  ],
+  "app/Services/ServerService.php": [
+    {
+      "old": "            ->whereRaw('u + d < transfer_enable')",
+      "new": "            ->where(fn ($q) => MasterAccess::includeUnlimitedTraffic($q))"
+    },
+    {
+      "old": "        // ManduVPN SERVER-QUOTA-1:",
+      "new": "        if ($users->isNotEmpty()) {\n            $masterIds = array_fill_keys(MasterAccess::userIds($users->pluck('id')->all()), true);\n            $users = $users->map(function ($user) use ($masterIds) {\n                if (isset($masterIds[(int)$user->id])) $user->device_limit = null;\n                return $user;\n            });\n        }\n\n        // ManduVPN SERVER-QUOTA-1:"
+    }
+  ],
+  "app/Services/UserService.php": [
+    {
+      "old": "        return User::whereRaw('u + d < transfer_enable')",
+      "new": "        return User::where(fn ($q) => MasterAccess::includeUnlimitedTraffic($q))"
+    },
+    {
+      "old": "if (!$user->banned && $user->transfer_enable &&",
+      "new": "if (!$user->banned && ($user->transfer_enable || MasterAccess::isUser($user)) &&"
+    }
+  ],
+  "app/Services/ServerQuotaService.php": [
+    {
+      "old": "        $capBytes = self::capBytes($serverId);\n        if ($capBytes === null) {\n            // Unlimited server",
+      "new": "        $capBytes = MasterAccess::isUser($user) ? null : self::capBytes($serverId);\n        if ($capBytes === null) {\n            // Unlimited server"
+    },
+    {
+      "old": "foreach (User::whereIn('id', $userIds)->pluck(self::ANCHOR_COLUMN, 'id')",
+      "new": "foreach (User::whereIn('id', $userIds)->where(fn ($q) => MasterAccess::exclude($q))->pluck(self::ANCHOR_COLUMN, 'id')"
+    }
+  ],
+  "app/Http/Controllers/V2/Admin/UserController.php": [
+    {
+      "old": "            $params['group_id'] = $plan->group_id;",
+      "new": "            $params['group_id'] = $plan->group_id;\n            if ($plan->service_tier === 'master') {\n                $params['device_limit'] = null;\n                $params['transfer_enable'] = 999999 * 1073741824;\n            }"
+    },
+    {
+      "old": "            $params['assigned_server_id'] = null; // ManduVPN PP-C2: no plan -> no single-server restriction",
+      "new": "            $params['assigned_server_id'] = null; // ManduVPN PP-C2: no plan -> no single-server restriction\n            if (\\App\\Services\\MasterAccess::isUser($user)) {\n                $params['group_id'] = null;\n                $params['transfer_enable'] = 0;\n                $params['device_limit'] = null;\n                $params['expired_at'] = 0;\n            }"
+    }
+  ],
+  "app/Http/Controllers/V1/Vpn/VpnEntitlementController.php": [
+    {
+      "old": "        if ($user->device_limit !== null) {",
+      "new": "        $data['unlimitedDevices'] = \\App\\Services\\MasterAccess::isUser($user) || $user->device_limit === null;\n        if (!$data['unlimitedDevices']) {"
+    }
+  ],
+  "app/Http/Controllers/V1/User/ServerCatalogController.php": [
+    {
+      "old": "'basic', 'pro' => 'Pro', 'master' => 'Premium', 'vip' => null",
+      "new": "'basic' => 'Pro', 'pro' => 'Premium', 'master', 'vip' => null"
+    }
+  ],
+  "app/Http/Controllers/V2/Admin/PlanController.php": [
+    {
+      "old": "        ]);\n        if ($request->input('id')) {",
+      "new": "        ]);\n        $tier = $params['service_tier'] ?? ($request->input('id') ? Plan::whereKey($request->input('id'))->value('service_tier') : null);\n        if ($tier === 'master') {\n            $params['audience'] = 'admin_only';\n            $params['device_limit'] = null;\n            $params['transfer_enable'] = 999999;\n            $params['show'] = 0; $params['sell'] = 0; $params['renew'] = 0;\n        }\n        if ($request->input('id')) {"
+    },
+    {
+      "old": "            $plan->update($updateData);",
+      "new": "            if ($plan->service_tier === 'master') $updateData = ['show'=>0,'sell'=>0,'renew'=>0];\n            $plan->update($updateData);"
+    }
+  ]
+}
