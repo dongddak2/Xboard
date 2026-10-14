@@ -50,6 +50,7 @@ class UserRoute
             $router->post('/ticket/withdraw', 'V1\\User\\TicketController@withdraw');
             // Server
             $router->get ('/server/fetch', 'V1\\User\\ServerController@fetch');
+            $router->get ('/server/catalog', 'V1\\User\\ServerCatalogController@fetch');
             // ManduVPN APP-BLOCK-1: IKEv2 connection profile for ONE node (address + this user's own credential).
             // Single-node only on purpose - /server/fetch stays credential-free, so no list can leak a secret.
             $router->get ('/server/ikev2/profile', 'V1\\User\\Ikev2ProfileController@profile');
